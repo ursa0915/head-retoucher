@@ -1355,13 +1355,30 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
 
             // Extract jawline points (below mouth level)
             const mouthBottomY = lm[17].y * h;
-            const jawPoints = ovalIdx
+            const rawJawPts = ovalIdx
               .map(i => ({ x: lm[i].x * w, y: lm[i].y * h }))
               .filter(p => p.y > mouthBottomY);
-            jawPoints.sort((a, b) => a.x - b.x);
+            rawJawPts.sort((a, b) => a.x - b.x);
 
-            // Jawline Y lookup: for any X, get the jaw Y via linear interpolation
-            const margin = 8; // buffer below jawline
+            // Smooth the jawline using Catmull-Rom interpolation for rounder curve
+            const jawPoints = [];
+            for (let i = 0; i < rawJawPts.length - 1; i++) {
+              const p0 = rawJawPts[Math.max(0, i - 1)];
+              const p1 = rawJawPts[i];
+              const p2 = rawJawPts[i + 1];
+              const p3 = rawJawPts[Math.min(rawJawPts.length - 1, i + 2)];
+              // Generate 5 sub-points between p1 and p2
+              for (let t = 0; t < 1; t += 0.2) {
+                const t2 = t * t, t3 = t2 * t;
+                const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+                const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+                jawPoints.push({ x, y });
+              }
+            }
+            jawPoints.push(rawJawPts[rawJawPts.length - 1]);
+
+            // Jawline Y lookup: smooth interpolated curve
+            const margin = 8;
             function jawlineYAtX(x) {
               if (jawPoints.length < 2) return chinY + margin;
               if (x <= jawPoints[0].x) return jawPoints[0].y + margin;
@@ -1375,9 +1392,10 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
               return chinY + margin;
             }
 
-            // Neck zone width: center 80% of jaw
-            const neckLeft = faceCenterX - jawWidth * 0.4;
-            const neckRight = faceCenterX + jawWidth * 0.4;
+            // Neck zone width: center 95% of jaw (wider to catch all neck)
+            const neckLeft = faceCenterX - jawWidth * 0.475;
+            const neckRight = faceCenterX + jawWidth * 0.475;
+            const deepClearDistance = 25; // px below jawline: remove ALL pixels regardless of color
 
             // Load and process cutout
             const cutoutImg = new Image();
@@ -1389,24 +1407,31 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
               const imageData = ctx.getImageData(0, 0, w, h);
               const d = imageData.data;
 
-              // Scan from the jaw area downward
               const scanStartY = Math.floor(mouthBottomY);
               for (let y = scanStartY; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                   const pi = (y * w + x) * 4;
-                  if (d[pi + 3] < 10) continue; // already transparent
+                  if (d[pi + 3] < 10) continue;
 
-                  // Side zones: don't touch (preserve hair)
+                  // Side zones: preserve hair
                   if (x < neckLeft || x > neckRight) continue;
 
-                  // Check if BELOW the jawline curve at this X position
+                  // Check jawline boundary
                   const jawY = jawlineYAtX(x);
                   if (y <= jawY) continue; // above jawline = keep
 
-                  // Below jawline + skin-colored = neck, remove
+                  const distBelowJaw = y - jawY;
+
+                  // GUARANTEED CLEAR: far below jawline = remove everything
+                  if (distBelowJaw > deepClearDistance) {
+                    d[pi + 3] = 0;
+                    continue;
+                  }
+
+                  // Near jawline: only remove skin-colored pixels
                   const r = d[pi], g = d[pi + 1], b = d[pi + 2];
                   if (isSkinColor(r, g, b)) {
-                    d[pi + 3] = 0; // fully transparent
+                    d[pi + 3] = 0;
                   }
                 }
               }
