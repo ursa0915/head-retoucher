@@ -1000,6 +1000,25 @@ ADDITIONAL RULES:
 
 OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
 
+    // ===== NECK REMOVAL PROMPT (Pass 2 - applied to cutout) =====
+    const NECK_REMOVAL_PROMPT = `Task: Look at this head cutout image (transparent background). Generate a BLACK AND WHITE MASK that precisely separates the CHIN from the NECK.
+
+RULES:
+- Output a BLACK AND WHITE image of the EXACT SAME dimensions as the input.
+- The HEAD area (face, hair, ears, chin, jawline) must be PURE WHITE (#FFFFFF).
+- The NECK area must be PURE BLACK (#000000).
+- Transparent/empty areas must be PURE BLACK (#000000).
+
+CRITICAL — CHIN vs NECK:
+- The ENTIRE chin and jawline must be WHITE (fully preserved).
+- The cut line must follow the natural chin-to-neck anatomical boundary.
+- The chin is the BONE structure below the mouth. The neck is the SOFT TISSUE below the chin bone.
+- The cut should create a smooth, natural, rounded bottom edge along the chin/jawline.
+- Feather the edge slightly (2-3px) for natural blending.
+- Do NOT cut into the chin or jaw. Be generous with preserving chin area.
+
+OUTPUT: Black and white mask. White = keep (head+chin). Black = remove (neck+background).`;
+
 
     // ============================================================
     //  State
@@ -1190,7 +1209,7 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
         const base64 = await fileToBase64(item.file);
         const mimeType = item.file.type || 'image/jpeg';
 
-        // SINGLE GEMINI CALL: mask only (head = 100% original pixels)
+        // STEP 1: Gemini mask → cut head from original (100% original pixels)
         const maskResult = await callGeminiImage(MASK_PROMPT, base64, mimeType);
 
         // Apply mask to ORIGINAL image → original pixels, transparent bg
@@ -1199,8 +1218,14 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
           maskResult.data, maskResult.mimeType
         );
 
-        // Apply Canvas-based beauty filters (doesn't change shape/position)
-        const beautifiedBase64 = await applyCanvasBeauty(cutoutBase64);
+        // STEP 2: Gemini AI neck removal → send cutout, get chin/neck mask
+        const neckMaskResult = await callGeminiImage(NECK_REMOVAL_PROMPT, cutoutBase64, 'image/png');
+
+        // Apply neck mask to cutout → removes neck, preserves chin
+        const neckRemovedBase64 = await applyNeckMask(cutoutBase64, neckMaskResult.data, neckMaskResult.mimeType);
+
+        // STEP 3: Canvas beauty filters
+        const beautifiedBase64 = await applyCanvasBeauty(neckRemovedBase64);
 
         item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
         item.status = 'done';
@@ -1263,10 +1288,7 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
           ctx.drawImage(maskImg, 0, 0, w, h);
           const maskData = ctx.getImageData(0, 0, w, h);
 
-          // Remove neck using MediaPipe face landmarks
-          await removeNeckFromMask(maskData, w, h, originalImg);
-
-          // Apply mask brightness as alpha
+          // Apply mask brightness as alpha (no algorithmic post-processing)
           for (let i = 0; i < originalData.data.length; i += 4) {
             const b = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
             originalData.data[i + 3] = Math.round(b);
@@ -1280,6 +1302,51 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
         maskImg.onload = onBothLoaded;
         originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
         maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
+      });
+    }
+
+    // Apply a neck removal mask to an already-cutout image
+    // neckMask: white = keep, black = remove
+    function applyNeckMask(cutoutBase64, neckMaskBase64, neckMaskMimeType) {
+      return new Promise((resolve) => {
+        const cutoutImg = new Image();
+        const maskImg = new Image();
+        let loaded = 0;
+
+        function onBothLoaded() {
+          loaded++;
+          if (loaded < 2) return;
+
+          const w = cutoutImg.width, h = cutoutImg.height;
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+
+          // Draw cutout
+          ctx.drawImage(cutoutImg, 0, 0);
+          const cutoutData = ctx.getImageData(0, 0, w, h);
+
+          // Draw neck mask
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(maskImg, 0, 0, w, h);
+          const maskData = ctx.getImageData(0, 0, w, h);
+
+          // Where mask is dark → make cutout transparent
+          for (let i = 0; i < cutoutData.data.length; i += 4) {
+            const maskBright = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+            // Multiply existing alpha with mask brightness
+            const existingAlpha = cutoutData.data[i + 3];
+            cutoutData.data[i + 3] = Math.round(existingAlpha * (maskBright / 255));
+          }
+
+          ctx.putImageData(cutoutData, 0, 0);
+          resolve(canvas.toDataURL('image/png').split(',')[1]);
+        }
+
+        cutoutImg.onload = onBothLoaded;
+        maskImg.onload = onBothLoaded;
+        cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+        maskImg.src = `data:${neckMaskMimeType};base64,${neckMaskBase64}`;
       });
     }
 
