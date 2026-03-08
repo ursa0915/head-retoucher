@@ -1085,6 +1085,11 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
     const AI_REDRAW_PROMPT = `CRITICAL: Isolate HEAD ONLY (remove neck/body) and FREEZE facial expression and head angle.
 Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face and optimize hair/skin while STRICTLY preserving the original angle and expression.
 
+## ABSOLUTE FREEZE — DO NOT VIOLATE:
+- FACE ANGLE: The head tilt, rotation, and angle must be 100% IDENTICAL to the input. Do NOT rotate, straighten, tilt, or adjust the face angle AT ALL. Not even by 1 degree.
+- BANGS/FRINGE (瀏海): The bangs/fringe must remain 100% IDENTICAL to the input. Do NOT change the shape, direction, parting, length, thickness, or style of the bangs in ANY way. The bangs are FROZEN.
+- EXPRESSION: Facial expression, mouth, eyes, eyebrows must remain IDENTICAL. No changes allowed.
+
 ## OUTPUT FORMAT:
 - The output MUST be a PNG image with a TRANSPARENT BACKGROUND.
 - Only the head should be visible. Everything else (background, neck, body) must be transparent.
