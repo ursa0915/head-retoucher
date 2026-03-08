@@ -182,6 +182,64 @@
       font-weight: 400;
     }
 
+    /* Mode Selector */
+    .mode-selector {
+      margin-bottom: 20px;
+    }
+
+    .mode-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 10px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      border: 1.5px solid rgba(255, 255, 255, 0.1);
+      background: var(--bg-primary);
+      cursor: pointer;
+      transition: var(--transition);
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .mode-btn:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--bg-secondary);
+    }
+
+    .mode-btn.active {
+      border-color: var(--accent-primary);
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(88, 86, 214, 0.08));
+      box-shadow: 0 0 20px rgba(0, 122, 255, 0.15);
+    }
+
+    .mode-icon {
+      font-size: 1.3rem;
+    }
+
+    .mode-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .mode-desc {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
     /* Upload Zone */
     .upload-zone {
       position: relative;
@@ -781,17 +839,31 @@
       <p>AI 智慧頭像分離與精修 — 上傳照片，自動去背、美膚、打光，產出專業大頭照</p>
     </header>
 
+    <!-- Mode Selector -->
+    <div class="mode-selector">
+      <div class="mode-label">處理模式</div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeAI" onclick="setMode('ai')">
+          <span class="mode-icon">🎨</span>
+          <span class="mode-text">AI 重繪</span>
+          <span class="mode-desc">AI 自動美顏去背</span>
+        </button>
+        <button class="mode-btn" id="modeMask" onclick="setMode('mask')">
+          <span class="mode-icon">✂️</span>
+          <span class="mode-text">遮罩去背</span>
+          <span class="mode-desc">原圖像素 + 脖子清除</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Upload Zone -->
     <div class="upload-zone" id="uploadZone">
-      <div class="icon">
-        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <div class="upload-icon">
+        <svg width="56" height="50" viewBox="0 0 56 50" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="siriGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#FF2D55" />
-              <stop offset="25%" stop-color="#AF52DE" />
-              <stop offset="50%" stop-color="#5856D6" />
-              <stop offset="75%" stop-color="#007AFF" />
-              <stop offset="100%" stop-color="#5AC8FA" />
+            <linearGradient id="siriGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="var(--accent-primary)" />
+              <stop offset="100%" stop-color="var(--accent-secondary)" />
             </linearGradient>
           </defs>
           <rect x="6" y="10" width="44" height="34" rx="4" stroke="url(#siriGrad)" stroke-width="1.8" fill="none" />
@@ -1007,6 +1079,21 @@ RULES:
 
 OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BLACK.`;
 
+    // ===== AI REDRAW PROMPT (Mode: AI Redraw) =====
+    const AI_REDRAW_PROMPT = `CRITICAL: Isolate HEAD ONLY (remove neck/body) and FREEZE facial expression and head angle.
+Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face and optimize hair/skin while STRICTLY preserving the original angle and expression.
+1. Selection, Inpainting & Hair:
+* Inpainting (Completion): If the top of the head, hair, or chin is cropped in the original photo, you MUST generate and seamlessly fill in the missing areas to create a complete, uncropped head.
+* Cut: Head only. No neck.
+* Hair: Maintain original style and Strictly KEEP original hair length (do NOT elongate or shorten). Make hair neat, smooth, and frizz-free.
+* CRITICAL INSTRUCTION For Braids/Pigtails: They MUST be perfectly neat, smooth, and absolutely symmetrical. You MUST fill in any visible gaps or sparse areas in the hair structure to create a full, dense, and neat appearance.
+2. Lighting (Natural & Bright):
+* Source: Use Soft, Bright Natural Daylight.
+* Action: Gently brighten the overall exposure.
+3. Skin (Fairer & Subtle Glow):
+* Tone: Increase skin brightness slightly to achieve a fairer, paler tone while remaining healthy-looking (avoid "dead white").
+* Blush & Sheen: Add a very pale, barely-there natural pink blush to the cheeks. Over this area, add a minimal, subtle healthy sheen (micro-highlight) to the cheekbones.`;
+
     // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
     const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
 
@@ -1038,6 +1125,13 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
     let queue = []; // { id, file, originalUrl, resultData, status: 'pending'|'processing'|'done'|'error', errorMsg }
     let idCounter = 0;
     let isProcessing = false;
+    let currentMode = 'ai'; // 'ai' or 'mask'
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
+      document.getElementById('modeMask').classList.toggle('active', mode === 'mask');
+    }
 
     // ============================================================
     //  DOM refs
@@ -1221,22 +1315,32 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
         const base64 = await fileToBase64(item.file);
         const mimeType = item.file.type || 'image/jpeg';
 
-        // STEP 1: Gemini mask → cut head from original (100% original pixels)
-        const maskResult = await callGeminiImage(MASK_PROMPT, base64, mimeType);
+        if (currentMode === 'ai') {
+          // ===== AI REDRAW MODE =====
+          // Single Gemini call: redraw head with beauty + no neck
+          const result = await callGeminiImage(AI_REDRAW_PROMPT, base64, mimeType);
+          item.resultData = { data: result.data, mimeType: result.mimeType };
 
-        // Apply mask to ORIGINAL image → original pixels, transparent bg
-        const cutoutBase64 = await applyMaskToOriginal(
-          base64, mimeType,
-          maskResult.data, maskResult.mimeType
-        );
+        } else {
+          // ===== MASK MODE =====
+          // STEP 1: Gemini mask → cut head from original (100% original pixels)
+          const maskResult = await callGeminiImage(MASK_PROMPT, base64, mimeType);
 
-        // STEP 2: Skin-aware neck removal (only removes skin-colored pixels below chin)
-        const neckCleanedBase64 = await skinAwareNeckRemoval(cutoutBase64, base64, mimeType);
+          // Apply mask to ORIGINAL image → original pixels, transparent bg
+          const cutoutBase64 = await applyMaskToOriginal(
+            base64, mimeType,
+            maskResult.data, maskResult.mimeType
+          );
 
-        // STEP 3: Canvas beauty filters
-        const beautifiedBase64 = await applyCanvasBeauty(neckCleanedBase64);
+          // STEP 2: Skin-aware neck removal (only removes skin-colored pixels below chin)
+          const neckCleanedBase64 = await skinAwareNeckRemoval(cutoutBase64, base64, mimeType);
 
-        item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
+          // STEP 3: Canvas beauty filters
+          const beautifiedBase64 = await applyCanvasBeauty(neckCleanedBase64);
+
+          item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
+        }
+
         item.status = 'done';
       } catch (err) {
         console.error('Processing error:', err);
