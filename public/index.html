@@ -1001,21 +1001,28 @@ ADDITIONAL RULES:
 OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
 
     // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
-    const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. The image has a transparent background with a head/face visible. There is NECK skin still visible below the chin. You must REMOVE the neck and create a clean, rounded chin edge.
+    const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
 
-CRITICAL RULES:
-1. DO NOT CHANGE ANYTHING ABOVE THE CHIN. The face, eyes, nose, mouth, ears, hair, forehead — all must remain PIXEL-IDENTICAL to the input. Zero changes allowed above the jawline.
-2. ONLY modify the area BELOW the jawline/chin bone:
-   - Remove ALL neck skin, throat, Adam's apple.
-   - Redraw the bottom edge of the chin/jaw to be smooth and naturally rounded.
-   - The new bottom edge should follow the natural curve of the jawline.
-3. Where neck was removed, make the area TRANSPARENT (keep the transparent background).
-4. The transition from chin to transparent must be seamless — use soft feathering (2-3px) along the new chin edge.
-5. Keep the EXACT same image dimensions. Do NOT crop or resize.
-6. Do NOT mirror or flip the image.
-7. The output must be a PNG with transparent background.
+## ABSOLUTE RULES — DO NOT VIOLATE:
+1. EVERYTHING ABOVE THE JAWLINE must remain 100% PIXEL-IDENTICAL to the input. The face, eyes, nose, mouth, hair, ears, forehead — ZERO modifications above the jawline. Not even 1 pixel.
+2. Do NOT mirror, flip, rotate, crop, or resize the image. Same dimensions.
 
-SUMMARY: Remove neck. Keep face identical. Create smooth rounded chin edge. Transparent background.`;
+## NECK REMOVAL:
+- Identify ALL neck skin below the jawline/chin bone.
+- Remove 100% of it — every single pixel of neck, throat, Adam's apple must become TRANSPARENT.
+- There must be ZERO neck skin remaining. None. Completely gone.
+
+## JAWLINE EDGE — THIS IS THE MOST IMPORTANT PART:
+- The bottom edge of the head must be a single, PRECISE, SMOOTH CURVED ARC.
+- The arc goes from below one ear → curves down to the bottom of the chin → back up to below the other ear.
+- This arc must be: smooth, continuous, clean, anti-aliased, with no jagged edges.
+- The curve should follow the natural bone structure of the jaw.
+- Apply soft feathering (2-3px) along this arc for natural blending into transparency.
+- Think of it as drawing a perfect U-shaped curve that hugs the jawline.
+
+## OUTPUT:
+- PNG with transparent background.
+- Head with clean curved jawline edge. No neck. Face identical to input.`;
 
 
     // ============================================================
