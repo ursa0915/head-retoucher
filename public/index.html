@@ -1000,24 +1000,22 @@ ADDITIONAL RULES:
 
 OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
 
-    // ===== NECK REMOVAL PROMPT (Pass 2 - applied to cutout) =====
-    const NECK_REMOVAL_PROMPT = `Task: Look at this head cutout image (transparent background). Generate a BLACK AND WHITE MASK that precisely separates the CHIN from the NECK.
+    // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
+    const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. The image has a transparent background with a head/face visible. There is NECK skin still visible below the chin. You must REMOVE the neck and create a clean, rounded chin edge.
 
-RULES:
-- Output a BLACK AND WHITE image of the EXACT SAME dimensions as the input.
-- The HEAD area (face, hair, ears, chin, jawline) must be PURE WHITE (#FFFFFF).
-- The NECK area must be PURE BLACK (#000000).
-- Transparent/empty areas must be PURE BLACK (#000000).
+CRITICAL RULES:
+1. DO NOT CHANGE ANYTHING ABOVE THE CHIN. The face, eyes, nose, mouth, ears, hair, forehead — all must remain PIXEL-IDENTICAL to the input. Zero changes allowed above the jawline.
+2. ONLY modify the area BELOW the jawline/chin bone:
+   - Remove ALL neck skin, throat, Adam's apple.
+   - Redraw the bottom edge of the chin/jaw to be smooth and naturally rounded.
+   - The new bottom edge should follow the natural curve of the jawline.
+3. Where neck was removed, make the area TRANSPARENT (keep the transparent background).
+4. The transition from chin to transparent must be seamless — use soft feathering (2-3px) along the new chin edge.
+5. Keep the EXACT same image dimensions. Do NOT crop or resize.
+6. Do NOT mirror or flip the image.
+7. The output must be a PNG with transparent background.
 
-CRITICAL — CHIN vs NECK:
-- The ENTIRE chin and jawline must be WHITE (fully preserved).
-- The cut line must follow the natural chin-to-neck anatomical boundary.
-- The chin is the BONE structure below the mouth. The neck is the SOFT TISSUE below the chin bone.
-- The cut should create a smooth, natural, rounded bottom edge along the chin/jawline.
-- Feather the edge slightly (2-3px) for natural blending.
-- Do NOT cut into the chin or jaw. Be generous with preserving chin area.
-
-OUTPUT: Black and white mask. White = keep (head+chin). Black = remove (neck+background).`;
+SUMMARY: Remove neck. Keep face identical. Create smooth rounded chin edge. Transparent background.`;
 
 
     // ============================================================
@@ -1218,14 +1216,11 @@ OUTPUT: Black and white mask. White = keep (head+chin). Black = remove (neck+bac
           maskResult.data, maskResult.mimeType
         );
 
-        // STEP 2: Gemini AI neck removal → send cutout, get chin/neck mask
-        const neckMaskResult = await callGeminiImage(NECK_REMOVAL_PROMPT, cutoutBase64, 'image/png');
-
-        // Apply neck mask to cutout → removes neck, preserves chin
-        const neckRemovedBase64 = await applyNeckMask(cutoutBase64, neckMaskResult.data, neckMaskResult.mimeType);
+        // STEP 2: Gemini redraw chin edge → remove neck, smooth jawline
+        const neckRedrawResult = await callGeminiImage(NECK_REDRAW_PROMPT, cutoutBase64, 'image/png');
 
         // STEP 3: Canvas beauty filters
-        const beautifiedBase64 = await applyCanvasBeauty(neckRemovedBase64);
+        const beautifiedBase64 = await applyCanvasBeauty(neckRedrawResult.data);
 
         item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
         item.status = 'done';
