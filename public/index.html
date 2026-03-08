@@ -1164,6 +1164,7 @@ REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
       document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
       document.getElementById('modeMask').classList.toggle('active', mode === 'mask');
     }
+    window.setMode = setMode;
 
     // ============================================================
     //  DOM refs
