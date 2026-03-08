@@ -1019,11 +1019,13 @@
     // ============================================================
     //  Gemini API Config (key encoded to prevent scanner detection)
     // ============================================================
-    const GEMINI_MODEL = 'gemini-3-pro-image-preview';
+    const GEMINI_MODEL = 'gemini-2.0-flash-exp';
+    const GEMINI_MODEL_PRO = 'gemini-2.0-flash-exp'; // same model but can be upgraded
     const _k = atob('QUl6YVN5RExKV0hTN3p0NTN5Mk5sS2hfXzB5QTFoM0NFNnp6Qzk0');
 
-    function getGeminiUrl() {
-      return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${_k}`;
+    function getGeminiUrl(model) {
+      const m = model || GEMINI_MODEL;
+      return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${_k}`;
     }
 
     // ===== BEAUTY PROMPT (Pass 1) =====
@@ -1082,9 +1084,16 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
     // ===== AI REDRAW PROMPT (Mode: AI Redraw) =====
     const AI_REDRAW_PROMPT = `CRITICAL: Isolate HEAD ONLY (remove neck/body) and FREEZE facial expression and head angle.
 Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face and optimize hair/skin while STRICTLY preserving the original angle and expression.
+
+## OUTPUT FORMAT:
+- The output MUST be a PNG image with a TRANSPARENT BACKGROUND.
+- Only the head should be visible. Everything else (background, neck, body) must be transparent.
+- Do NOT place the head on a white or colored background. The background MUST be transparent/alpha.
+
 1. Selection, Inpainting & Hair:
 * Inpainting (Completion): If the top of the head, hair, or chin is cropped in the original photo, you MUST generate and seamlessly fill in the missing areas to create a complete, uncropped head.
-* Cut: Head only. No neck.
+* Cut: Head only. No neck. No shoulders. No body. No clothing.
+* The bottom edge should be a clean, smooth, rounded jawline curve.
 * Hair: Maintain original style and Strictly KEEP original hair length (do NOT elongate or shorten). Make hair neat, smooth, and frizz-free.
 * CRITICAL INSTRUCTION For Braids/Pigtails: They MUST be perfectly neat, smooth, and absolutely symmetrical. You MUST fill in any visible gaps or sparse areas in the hair structure to create a full, dense, and neat appearance.
 2. Lighting (Natural & Bright):
@@ -1092,7 +1101,9 @@ Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face
 * Action: Gently brighten the overall exposure.
 3. Skin (Fairer & Subtle Glow):
 * Tone: Increase skin brightness slightly to achieve a fairer, paler tone while remaining healthy-looking (avoid "dead white").
-* Blush & Sheen: Add a very pale, barely-there natural pink blush to the cheeks. Over this area, add a minimal, subtle healthy sheen (micro-highlight) to the cheekbones.`;
+* Blush & Sheen: Add a very pale, barely-there natural pink blush to the cheeks. Over this area, add a minimal, subtle healthy sheen (micro-highlight) to the cheekbones.
+
+REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
 
     // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
     const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
@@ -1277,8 +1288,8 @@ Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face
     }
 
     // Helper: call Gemini with a prompt + image, return the result image
-    async function callGeminiImage(prompt, imageBase64, imageMimeType) {
-      const resp = await fetch(getGeminiUrl(), {
+    async function callGeminiImage(prompt, imageBase64, imageMimeType, model) {
+      const resp = await fetch(getGeminiUrl(model), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1317,8 +1328,8 @@ Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face
 
         if (currentMode === 'ai') {
           // ===== AI REDRAW MODE =====
-          // Single Gemini call: redraw head with beauty + no neck
-          const result = await callGeminiImage(AI_REDRAW_PROMPT, base64, mimeType);
+          // Single Gemini call with Pro model: redraw head with beauty + no neck + transparent bg
+          const result = await callGeminiImage(AI_REDRAW_PROMPT, base64, mimeType, GEMINI_MODEL_PRO);
           item.resultData = { data: result.data, mimeType: result.mimeType };
 
         } else {
