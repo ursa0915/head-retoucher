@@ -1411,13 +1411,14 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
                 }
               }
 
-              // Light 1px alpha blur for smooth edges on the transition zone
+              // Light 1px alpha blur for smooth jawline edge
+              const blurStart = Math.max(1, scanStartY - 2);
+              const blurEnd = Math.min(h - 1, Math.floor(chinY) + 60);
               const blurred = new Uint8ClampedArray(d);
-              for (let y = Math.max(1, Math.floor(neckStartY) - 2); y < Math.min(h - 1, h); y++) {
-                for (let x = 1; x < w - 1; x++) {
+              for (let y = blurStart; y < blurEnd; y++) {
+                for (let x = Math.max(1, Math.floor(neckLeft)); x < Math.min(w - 1, Math.ceil(neckRight)); x++) {
                   const pi = (y * w + x) * 4;
                   const origAlpha = d[pi + 3];
-                  // Only blur near transitions
                   const above = d[((y - 1) * w + x) * 4 + 3];
                   const below = d[((y + 1) * w + x) * 4 + 3];
                   if (Math.abs(origAlpha - above) > 30 || Math.abs(origAlpha - below) > 30) {
