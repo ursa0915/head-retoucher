@@ -1343,20 +1343,41 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
             const w = origImg.width, h = origImg.height;
 
             // Key reference points
-            const chinY = lm[152].y * h;        // chin bottom
-            const noseTipY = lm[1].y * h;
-            const faceHeight = chinY - (lm[10].y * h); // forehead to chin
-            const faceCenterX = lm[1].x * w;    // nose tip X = face center
-
-            // Jaw width from face oval landmarks
-            const leftJawX = lm[234].x * w;     // left ear area
-            const rightJawX = lm[454].x * w;    // right ear area
+            const chinY = lm[152].y * h;
+            const faceCenterX = lm[1].x * w;
+            const leftJawX = lm[234].x * w;
+            const rightJawX = lm[454].x * w;
             const jawWidth = rightJawX - leftJawX;
 
-            // Neck zone: center 80% of jaw width, below chin
+            // Build jawline curve from face oval landmarks
+            // Face oval indices in order
+            const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+
+            // Extract jawline points (below mouth level)
+            const mouthBottomY = lm[17].y * h;
+            const jawPoints = ovalIdx
+              .map(i => ({ x: lm[i].x * w, y: lm[i].y * h }))
+              .filter(p => p.y > mouthBottomY);
+            jawPoints.sort((a, b) => a.x - b.x);
+
+            // Jawline Y lookup: for any X, get the jaw Y via linear interpolation
+            const margin = 8; // buffer below jawline
+            function jawlineYAtX(x) {
+              if (jawPoints.length < 2) return chinY + margin;
+              if (x <= jawPoints[0].x) return jawPoints[0].y + margin;
+              if (x >= jawPoints[jawPoints.length - 1].x) return jawPoints[jawPoints.length - 1].y + margin;
+              for (let i = 0; i < jawPoints.length - 1; i++) {
+                if (x >= jawPoints[i].x && x <= jawPoints[i + 1].x) {
+                  const t = (x - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
+                  return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y) + margin;
+                }
+              }
+              return chinY + margin;
+            }
+
+            // Neck zone width: center 80% of jaw
             const neckLeft = faceCenterX - jawWidth * 0.4;
             const neckRight = faceCenterX + jawWidth * 0.4;
-            const neckStartY = chinY + 5; // small buffer below chin
 
             // Load and process cutout
             const cutoutImg = new Image();
@@ -1368,21 +1389,25 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
               const imageData = ctx.getImageData(0, 0, w, h);
               const d = imageData.data;
 
-              for (let y = Math.floor(neckStartY); y < h; y++) {
+              // Scan from the jaw area downward
+              const scanStartY = Math.floor(mouthBottomY);
+              for (let y = scanStartY; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                   const pi = (y * w + x) * 4;
                   if (d[pi + 3] < 10) continue; // already transparent
 
-                  // Check if within neck zone (center of face)
-                  if (x < neckLeft || x > neckRight) continue; // side = hair zone, don't touch
+                  // Side zones: don't touch (preserve hair)
+                  if (x < neckLeft || x > neckRight) continue;
 
-                  // Check if pixel is skin-colored using HSL
+                  // Check if BELOW the jawline curve at this X position
+                  const jawY = jawlineYAtX(x);
+                  if (y <= jawY) continue; // above jawline = keep
+
+                  // Below jawline + skin-colored = neck, remove
                   const r = d[pi], g = d[pi + 1], b = d[pi + 2];
                   if (isSkinColor(r, g, b)) {
-                    // HARD CUTOFF: skin below chin = fully transparent
-                    d[pi + 3] = 0;
+                    d[pi + 3] = 0; // fully transparent
                   }
-                  // Non-skin pixels (hair) are left untouched
                 }
               }
 
