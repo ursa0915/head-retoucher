@@ -1223,8 +1223,11 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
           maskResult.data, maskResult.mimeType
         );
 
+        // STEP 1.5: Refine hair edges — smooth jagged edges + fill holes
+        const refinedBase64 = await refineHairEdges(cutoutBase64);
+
         // STEP 2: MediaPipe jawline clip — precise curved arc cutoff
-        const jawClippedBase64 = await clipJawline(cutoutBase64, base64, mimeType);
+        const jawClippedBase64 = await clipJawline(refinedBase64, base64, mimeType);
 
         // STEP 3: Canvas beauty filters
         const beautifiedBase64 = await applyCanvasBeauty(jawClippedBase64);
@@ -1304,6 +1307,115 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
         maskImg.onload = onBothLoaded;
         originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
         maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
+      });
+    }
+
+    // Refine hair edges: smooth jagged alpha + fill small holes
+    function refineHairEdges(base64Data) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.width, h = img.height;
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const d = imageData.data;
+
+          // Extract alpha channel
+          const alpha = new Float32Array(w * h);
+          for (let i = 0; i < w * h; i++) alpha[i] = d[i * 4 + 3];
+
+          // Step 1: DILATE alpha (fill small holes) — radius 2
+          const dilated = new Float32Array(alpha);
+          for (let pass = 0; pass < 2; pass++) {
+            const src = pass === 0 ? alpha : dilated;
+            for (let y = 1; y < h - 1; y++) {
+              for (let x = 1; x < w - 1; x++) {
+                const idx = y * w + x;
+                if (src[idx] < 128) {
+                  // Check 4-neighbors
+                  const maxN = Math.max(
+                    src[idx - 1], src[idx + 1],
+                    src[idx - w], src[idx + w]
+                  );
+                  if (maxN > 128) dilated[idx] = maxN;
+                }
+              }
+            }
+          }
+
+          // Step 2: ERODE back (remove expansion beyond original boundary) — radius 2
+          const eroded = new Float32Array(dilated);
+          for (let pass = 0; pass < 2; pass++) {
+            const src = pass === 0 ? dilated : eroded;
+            for (let y = 1; y < h - 1; y++) {
+              for (let x = 1; x < w - 1; x++) {
+                const idx = y * w + x;
+                if (src[idx] > 128) {
+                  const minN = Math.min(
+                    src[idx - 1], src[idx + 1],
+                    src[idx - w], src[idx + w]
+                  );
+                  if (minN < 10) eroded[idx] = alpha[idx]; // restore original if at edge
+                }
+              }
+            }
+          }
+
+          // Step 3: Smooth alpha (anti-alias edges) — 3x3 box blur on alpha
+          const smoothed = new Float32Array(eroded);
+          for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+              const idx = y * w + x;
+              // Only smooth near edges (where alpha transitions)
+              if (eroded[idx] > 5 && eroded[idx] < 250) {
+                let sum = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                  for (let dx = -1; dx <= 1; dx++) {
+                    sum += eroded[(y + dy) * w + (x + dx)];
+                  }
+                }
+                smoothed[idx] = sum / 9;
+              }
+            }
+          }
+
+          // Step 4: Apply smoothed alpha + fill RGB for newly opaque pixels
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const idx = y * w + x;
+              const pi = idx * 4;
+              const newAlpha = Math.round(smoothed[idx]);
+
+              if (newAlpha > 5 && d[pi + 3] < 5) {
+                // Newly opaque pixel (was a hole) — sample color from nearest opaque neighbor
+                let found = false;
+                for (let r = 1; r <= 3 && !found; r++) {
+                  for (let dy = -r; dy <= r && !found; dy++) {
+                    for (let dx = -r; dx <= r && !found; dx++) {
+                      const ny = y + dy, nx = x + dx;
+                      if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+                        const ni = (ny * w + nx) * 4;
+                        if (d[ni + 3] > 128) {
+                          d[pi] = d[ni]; d[pi + 1] = d[ni + 1]; d[pi + 2] = d[ni + 2];
+                          found = true;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              d[pi + 3] = newAlpha > 5 ? newAlpha : 0;
+            }
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+          resolve(canvas.toDataURL('image/png').split(',')[1]);
+        };
+        img.src = `data:image/png;base64,${base64Data}`;
       });
     }
 
