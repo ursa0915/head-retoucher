@@ -1391,17 +1391,19 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
               ctx.globalCompositeOperation = 'destination-in';
               ctx.beginPath();
 
-              // Start from top-left, go across the top, down right side, along jawline, up left side
-              ctx.moveTo(0, 0);
-              ctx.lineTo(w, 0);
-
-              // Right side down to rightmost jaw point
+              // CRITICAL: Sides go FULL HEIGHT to preserve cheek hair
+              // Only the CENTER (between jaw points) uses the jawline curve
               const rightJaw = jawPoints[jawPoints.length - 1];
-              ctx.lineTo(w, rightJaw.y);
-              ctx.lineTo(rightJaw.x, rightJaw.y);
+              const leftJaw = jawPoints[0];
+
+              // Top-left → top-right → bottom-right → right jaw bottom → jawline → left jaw bottom → bottom-left → top-left
+              ctx.moveTo(0, 0);
+              ctx.lineTo(w, 0);        // top edge
+              ctx.lineTo(w, h);        // right side ALL THE WAY DOWN (preserves side hair)
+              ctx.lineTo(rightJaw.x, h); // across bottom to right jaw X
+              ctx.lineTo(rightJaw.x, rightJaw.y); // UP to right jaw point
 
               // Draw smooth curve through jawline points (right to left)
-              // Use quadratic bezier curves for smoothness
               for (let i = jawPoints.length - 1; i > 0; i--) {
                 const cur = jawPoints[i];
                 const prev = jawPoints[i - 1];
@@ -1410,13 +1412,11 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
                 ctx.quadraticCurveTo(cur.x, cur.y, cpX, cpY);
               }
 
-              // End at leftmost jaw point
-              const leftJaw = jawPoints[0];
+              // Left jaw point → down to bottom → across to left edge → up to top
               ctx.lineTo(leftJaw.x, leftJaw.y);
-
-              // Left side back up to top
-              ctx.lineTo(0, leftJaw.y);
-              ctx.lineTo(0, 0);
+              ctx.lineTo(leftJaw.x, h);  // DOWN to bottom (preserves side hair)
+              ctx.lineTo(0, h);         // across bottom
+              ctx.lineTo(0, 0);         // left side up
 
               ctx.closePath();
               ctx.fill();
