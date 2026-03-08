@@ -1223,11 +1223,11 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
           maskResult.data, maskResult.mimeType
         );
 
-        // STEP 2: Gemini redraw chin edge → remove neck, smooth jawline
-        const neckRedrawResult = await callGeminiImage(NECK_REDRAW_PROMPT, cutoutBase64, 'image/png');
+        // STEP 2: MediaPipe jawline clip — precise curved arc cutoff
+        const jawClippedBase64 = await clipJawline(cutoutBase64, base64, mimeType);
 
         // STEP 3: Canvas beauty filters
-        const beautifiedBase64 = await applyCanvasBeauty(neckRedrawResult.data);
+        const beautifiedBase64 = await applyCanvasBeauty(jawClippedBase64);
 
         item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
         item.status = 'done';
@@ -1304,6 +1304,135 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
         maskImg.onload = onBothLoaded;
         originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
         maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
+      });
+    }
+
+    // Clip the cutout along the jawline using MediaPipe face landmarks
+    // Creates a precise curved arc below which everything becomes transparent
+    function clipJawline(cutoutBase64, originalBase64, originalMimeType) {
+      return new Promise((resolve) => {
+        // If no MediaPipe, return as-is
+        if (!faceLandmarker) {
+          console.warn('No FaceLandmarker, skipping jawline clip');
+          resolve(cutoutBase64);
+          return;
+        }
+
+        const origImg = new Image();
+        origImg.onload = () => {
+          try {
+            // Detect landmarks on original image (clearer than cutout)
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = origImg.width;
+            tmpCanvas.height = origImg.height;
+            tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
+
+            const results = faceLandmarker.detect(tmpCanvas);
+            if (!results.faceLandmarks || !results.faceLandmarks.length) {
+              console.warn('No face detected, skipping jawline clip');
+              resolve(cutoutBase64);
+              return;
+            }
+
+            const lm = results.faceLandmarks[0];
+            const w = origImg.width, h = origImg.height;
+
+            // Face oval indices (MediaPipe canonical order: forehead → right → chin → left → back to forehead)
+            const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+
+            // Convert to pixel coordinates
+            const ovalPts = ovalIdx.map(i => ({
+              x: lm[i].x * w,
+              y: lm[i].y * h
+            }));
+
+            // Find the jawline portion: points from right ear → chin → left ear
+            // These are roughly indices 8..18 in the oval array (454→152→234 path)
+            // The jaw is the LOWER portion of the face oval
+            const noseTipY = lm[1].y * h; // nose tip Y as reference
+
+            // Separate jaw points (below nose level) from forehead points
+            // Build the clipping region: top of image → follow oval above jaw → jaw curve → back to top
+            const jawPoints = [];
+            const upperPoints = [];
+            for (let i = 0; i < ovalPts.length; i++) {
+              if (ovalPts[i].y > noseTipY) {
+                jawPoints.push(ovalPts[i]);
+              } else {
+                upperPoints.push(ovalPts[i]);
+              }
+            }
+
+            if (jawPoints.length < 3) {
+              console.warn('Not enough jawline points, skipping clip');
+              resolve(cutoutBase64);
+              return;
+            }
+
+            // Sort jawline points left-to-right for smooth curve
+            jawPoints.sort((a, b) => a.x - b.x);
+
+            // Add margin below jawline (keep chin fully)
+            const margin = 5;
+            jawPoints.forEach(p => p.y += margin);
+
+            // Now draw the cutout image and clip it
+            const cutoutImg = new Image();
+            cutoutImg.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+
+              // Draw the cutout
+              ctx.drawImage(cutoutImg, 0, 0);
+
+              // Build clipping shape: covers everything ABOVE the jawline
+              // Use destination-in: only keep pixels within the clipping shape
+              ctx.globalCompositeOperation = 'destination-in';
+              ctx.beginPath();
+
+              // Start from top-left, go across the top, down right side, along jawline, up left side
+              ctx.moveTo(0, 0);
+              ctx.lineTo(w, 0);
+
+              // Right side down to rightmost jaw point
+              const rightJaw = jawPoints[jawPoints.length - 1];
+              ctx.lineTo(w, rightJaw.y);
+              ctx.lineTo(rightJaw.x, rightJaw.y);
+
+              // Draw smooth curve through jawline points (right to left)
+              // Use quadratic bezier curves for smoothness
+              for (let i = jawPoints.length - 1; i > 0; i--) {
+                const cur = jawPoints[i];
+                const prev = jawPoints[i - 1];
+                const cpX = (cur.x + prev.x) / 2;
+                const cpY = (cur.y + prev.y) / 2;
+                ctx.quadraticCurveTo(cur.x, cur.y, cpX, cpY);
+              }
+
+              // End at leftmost jaw point
+              const leftJaw = jawPoints[0];
+              ctx.lineTo(leftJaw.x, leftJaw.y);
+
+              // Left side back up to top
+              ctx.lineTo(0, leftJaw.y);
+              ctx.lineTo(0, 0);
+
+              ctx.closePath();
+              ctx.fill();
+
+              ctx.globalCompositeOperation = 'source-over';
+
+              resolve(canvas.toDataURL('image/png').split(',')[1]);
+            };
+            cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+
+          } catch (err) {
+            console.warn('Jawline clip error:', err);
+            resolve(cutoutBase64);
+          }
+        };
+        origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
       });
     }
 
