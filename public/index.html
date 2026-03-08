@@ -1346,20 +1346,15 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
               y: lm[i].y * h
             }));
 
-            // Find the jawline portion: points from right ear → chin → left ear
-            // These are roughly indices 8..18 in the oval array (454→152→234 path)
-            // The jaw is the LOWER portion of the face oval
-            const noseTipY = lm[1].y * h; // nose tip Y as reference
+            // Find the jawline portion — ONLY the very bottom edge of the face
+            // Use mouth bottom (landmark 17) as threshold — below this = true jaw edge
+            const mouthBottomY = lm[17].y * h;
 
-            // Separate jaw points (below nose level) from forehead points
-            // Build the clipping region: top of image → follow oval above jaw → jaw curve → back to top
+            // Only include points BELOW the mouth bottom — these are the true jaw edge points
             const jawPoints = [];
-            const upperPoints = [];
             for (let i = 0; i < ovalPts.length; i++) {
-              if (ovalPts[i].y > noseTipY) {
-                jawPoints.push(ovalPts[i]);
-              } else {
-                upperPoints.push(ovalPts[i]);
+              if (ovalPts[i].y > mouthBottomY) {
+                jawPoints.push({ ...ovalPts[i] });
               }
             }
 
@@ -1372,9 +1367,13 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
             // Sort jawline points left-to-right for smooth curve
             jawPoints.sort((a, b) => a.x - b.x);
 
-            // Add margin below jawline (keep chin fully)
-            const margin = 5;
-            jawPoints.forEach(p => p.y += margin);
+            // Add generous margin to avoid cutting into chin/cheeks
+            const vMargin = 15; // vertical: keep chin fully
+            const hMargin = 25; // horizontal: extend sides to protect cheek hair
+            jawPoints.forEach(p => p.y += vMargin);
+            // Extend leftmost and rightmost points outward
+            jawPoints[0].x = Math.max(0, jawPoints[0].x - hMargin);
+            jawPoints[jawPoints.length - 1].x = Math.min(w, jawPoints[jawPoints.length - 1].x + hMargin);
 
             // Now draw the cutout image and clip it
             const cutoutImg = new Image();
