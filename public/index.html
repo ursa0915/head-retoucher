@@ -984,21 +984,28 @@ FINAL REMINDER: Expression and head angle MUST be IDENTICAL to input. No mirrori
 
 RULES:
 - Output a BLACK AND WHITE image of the EXACT SAME dimensions as the input.
-- The head area (including ALL hair, ears, face, chin) must be PURE WHITE (#FFFFFF).
-- Everything else (background, neck, shoulders, body, clothing) must be PURE BLACK (#000000).
+- The head area must be PURE WHITE (#FFFFFF).
+- Everything else must be PURE BLACK (#000000).
 
-# CRITICAL: NECK MUST BE 100% REMOVED
-- Cut at the BOTTOM of the chin/jawline. Everything BELOW = PURE BLACK.
-- The neck must be completely BLACK. Zero neck skin visible.
-- Include NO neck, NO throat, NO shoulders, NO collar, NO clothing.
+# WHAT TO INCLUDE (WHITE):
+- Face, forehead, chin, jawline, ears
+- ALL hair: including long hair, ponytails, braids, pigtails, loose strands, wispy edges
+- Hair that extends below the shoulders must STILL be included as WHITE
+- Fine hair strands and flyaways at edges: use GRAY values (semi-transparent)
 
-ADDITIONAL RULES:
-- Clean, smooth mask edges with slight feathering (1-2px).
+# WHAT TO EXCLUDE (BLACK):
+- Background
+- Neck, throat, Adam's apple — the neck must be PURE BLACK
+- Shoulders, body, clothing, collar
+- Cut at the BOTTOM of the chin/jawline bone. Below the chin bone = BLACK.
+
+# EDGE QUALITY:
+- Clean, smooth mask edges with slight feathering (1-2px)
+- Hair edges: use gray values for natural semi-transparency
 - Match EXACT position and angle of head. Do NOT mirror or flip.
-- Use gray values for semi-transparent hair edges.
 - Same resolution as input.
 
-OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
+OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BLACK.`;
 
     // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
     const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
@@ -1223,14 +1230,11 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
           maskResult.data, maskResult.mimeType
         );
 
-        // STEP 1.5: Refine hair edges — smooth jagged edges + fill holes
-        const refinedBase64 = await refineHairEdges(cutoutBase64);
-
-        // STEP 2: MediaPipe jawline clip — precise curved arc cutoff
-        const jawClippedBase64 = await clipJawline(refinedBase64, base64, mimeType);
+        // STEP 2: Skin-aware neck removal (only removes skin-colored pixels below chin)
+        const neckCleanedBase64 = await skinAwareNeckRemoval(cutoutBase64, base64, mimeType);
 
         // STEP 3: Canvas beauty filters
-        const beautifiedBase64 = await applyCanvasBeauty(jawClippedBase64);
+        const beautifiedBase64 = await applyCanvasBeauty(neckCleanedBase64);
 
         item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
         item.status = 'done';
@@ -1308,6 +1312,138 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
         originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
         maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
       });
+    }
+
+    // Skin-aware neck removal: only remove skin-colored pixels below the chin
+    // Hair (dark, non-skin colors) is preserved even below chin level
+    function skinAwareNeckRemoval(cutoutBase64, originalBase64, originalMimeType) {
+      return new Promise((resolve) => {
+        if (!faceLandmarker) {
+          console.warn('No FaceLandmarker, skipping neck removal');
+          resolve(cutoutBase64);
+          return;
+        }
+
+        const origImg = new Image();
+        origImg.onload = () => {
+          try {
+            // Detect face on original image
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = origImg.width; tmpCanvas.height = origImg.height;
+            tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
+            const results = faceLandmarker.detect(tmpCanvas);
+
+            if (!results.faceLandmarks || !results.faceLandmarks.length) {
+              console.warn('No face detected, skipping neck removal');
+              resolve(cutoutBase64);
+              return;
+            }
+
+            const lm = results.faceLandmarks[0];
+            const w = origImg.width, h = origImg.height;
+
+            // Key reference points
+            const chinY = lm[152].y * h;        // chin bottom
+            const noseTipY = lm[1].y * h;
+            const faceHeight = chinY - (lm[10].y * h); // forehead to chin
+            const faceCenterX = lm[1].x * w;    // nose tip X = face center
+
+            // Jaw width from face oval landmarks
+            const leftJawX = lm[234].x * w;     // left ear area
+            const rightJawX = lm[454].x * w;    // right ear area
+            const jawWidth = rightJawX - leftJawX;
+
+            // Neck zone: center 80% of jaw width, below chin
+            const neckLeft = faceCenterX - jawWidth * 0.4;
+            const neckRight = faceCenterX + jawWidth * 0.4;
+            const neckStartY = chinY + 5; // small buffer below chin
+            const fadeDistance = faceHeight * 0.15; // gradual fade zone
+
+            // Load and process cutout
+            const cutoutImg = new Image();
+            cutoutImg.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(cutoutImg, 0, 0);
+              const imageData = ctx.getImageData(0, 0, w, h);
+              const d = imageData.data;
+
+              for (let y = Math.floor(neckStartY); y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                  const pi = (y * w + x) * 4;
+                  if (d[pi + 3] < 10) continue; // already transparent
+
+                  // Check if within neck zone (center of face)
+                  if (x < neckLeft || x > neckRight) continue; // side = hair zone, don't touch
+
+                  // Check if pixel is skin-colored using HSL
+                  const r = d[pi], g = d[pi + 1], b = d[pi + 2];
+                  if (isSkinColor(r, g, b)) {
+                    // Distance below chin → fade factor
+                    const dist = y - neckStartY;
+                    const fade = Math.min(1, dist / fadeDistance);
+                    // Reduce alpha: more distant from chin = more transparent
+                    d[pi + 3] = Math.round(d[pi + 3] * (1 - fade));
+                  }
+                  // Non-skin pixels (hair) are left untouched
+                }
+              }
+
+              // Light 1px alpha blur for smooth edges on the transition zone
+              const blurred = new Uint8ClampedArray(d);
+              for (let y = Math.max(1, Math.floor(neckStartY) - 2); y < Math.min(h - 1, h); y++) {
+                for (let x = 1; x < w - 1; x++) {
+                  const pi = (y * w + x) * 4;
+                  const origAlpha = d[pi + 3];
+                  // Only blur near transitions
+                  const above = d[((y - 1) * w + x) * 4 + 3];
+                  const below = d[((y + 1) * w + x) * 4 + 3];
+                  if (Math.abs(origAlpha - above) > 30 || Math.abs(origAlpha - below) > 30) {
+                    const sum = d[((y - 1) * w + x - 1) * 4 + 3] + d[((y - 1) * w + x) * 4 + 3] + d[((y - 1) * w + x + 1) * 4 + 3]
+                      + d[(y * w + x - 1) * 4 + 3] + origAlpha + d[(y * w + x + 1) * 4 + 3]
+                      + d[((y + 1) * w + x - 1) * 4 + 3] + d[((y + 1) * w + x) * 4 + 3] + d[((y + 1) * w + x + 1) * 4 + 3];
+                    blurred[pi + 3] = Math.round(sum / 9);
+                  }
+                }
+              }
+              // Copy blurred alpha back
+              for (let i = 3; i < d.length; i += 4) d[i] = blurred[i];
+
+              ctx.putImageData(imageData, 0, 0);
+              resolve(canvas.toDataURL('image/png').split(',')[1]);
+            };
+            cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+
+          } catch (err) {
+            console.warn('Neck removal error:', err);
+            resolve(cutoutBase64);
+          }
+        };
+        origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
+      });
+    }
+
+    // Check if RGB color is skin-like using HSL heuristics
+    function isSkinColor(r, g, b) {
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const l = (max + min) / 2 / 255;
+      if (l < 0.15 || l > 0.88) return false; // too dark (hair) or too bright
+
+      const d = max - min;
+      if (d === 0) return false; // gray
+      const s = d / (l > 0.5 ? (510 - max - min) : (max + min));
+      if (s < 0.08) return false; // low saturation = not skin
+
+      // Hue calculation
+      let h;
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+
+      // Skin hue range: roughly 0-50° (red to yellow-orange)
+      return (h >= 0 && h <= 55) || h >= 340; // include pinkish reds
     }
 
     // Refine hair edges: smooth jagged alpha + fill small holes
