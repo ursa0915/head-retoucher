@@ -1480,12 +1480,36 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
             jawPoints.sort((a, b) => a.x - b.x);
 
             // Add generous margin to avoid cutting into chin/cheeks
-            const vMargin = 15; // vertical: keep chin fully
-            const hMargin = 25; // horizontal: extend sides to protect cheek hair
+            const vMargin = 20; // vertical: generous chin buffer
             jawPoints.forEach(p => p.y += vMargin);
-            // Extend leftmost and rightmost points outward
-            jawPoints[0].x = Math.max(0, jawPoints[0].x - hMargin);
-            jawPoints[jawPoints.length - 1].x = Math.min(w, jawPoints[jawPoints.length - 1].x + hMargin);
+
+            // Calculate neck-only zone: narrow strip in the center
+            // The neck is approximately 40% of jaw width — only clip THIS zone
+            const leftJaw = jawPoints[0];
+            const rightJaw = jawPoints[jawPoints.length - 1];
+            const jawWidth = rightJaw.x - leftJaw.x;
+            const centerX = (leftJaw.x + rightJaw.x) / 2;
+            const neckHalfWidth = jawWidth * 0.4; // 40% of jaw width = neck zone
+            const neckLeft = centerX - neckHalfWidth;
+            const neckRight = centerX + neckHalfWidth;
+
+            // Filter jaw points to only those within the neck zone
+            const neckJawPts = jawPoints.filter(p => p.x >= neckLeft && p.x <= neckRight);
+            // Ensure we have boundary points at neckLeft and neckRight
+            // Find the jaw Y at neck boundaries via interpolation
+            const jawYAtX = (targetX) => {
+              // Find the two jawPoints bracketing targetX
+              for (let i = 0; i < jawPoints.length - 1; i++) {
+                if (jawPoints[i].x <= targetX && jawPoints[i + 1].x >= targetX) {
+                  const t = (targetX - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
+                  return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y);
+                }
+              }
+              return jawPoints[0].y;
+            };
+
+            const neckLeftY = jawYAtX(neckLeft);
+            const neckRightY = jawYAtX(neckRight);
 
             // Now draw the cutout image and clip it
             const cutoutImg = new Image();
@@ -1497,37 +1521,36 @@ OUTPUT: Black and white mask. White = head. Black = remove. Neck = BLACK.`;
               // Draw the cutout
               ctx.drawImage(cutoutImg, 0, 0);
 
-              // Build clipping shape: covers everything ABOVE the jawline
-              // Use destination-in: only keep pixels within the clipping shape
+              // Clipping: keep EVERYTHING except the narrow neck strip below jawline
               ctx.globalCompositeOperation = 'destination-in';
               ctx.beginPath();
 
-              // CRITICAL: Sides go FULL HEIGHT to preserve cheek hair
-              // Only the CENTER (between jaw points) uses the jawline curve
-              const rightJaw = jawPoints[jawPoints.length - 1];
-              const leftJaw = jawPoints[0];
+              // Full image rectangle, but carve out the neck zone below jawline
+              // Path: top-left → top-right → right-full-height → 
+              //   bottom to neckRight → UP to jaw at neckRight →
+              //   jawline curve from right to left →
+              //   DOWN from jaw at neckLeft to bottom →
+              //   left-full-height → back to top-left
 
-              // Top-left → top-right → bottom-right → right jaw bottom → jawline → left jaw bottom → bottom-left → top-left
               ctx.moveTo(0, 0);
-              ctx.lineTo(w, 0);        // top edge
-              ctx.lineTo(w, h);        // right side ALL THE WAY DOWN (preserves side hair)
-              ctx.lineTo(rightJaw.x, h); // across bottom to right jaw X
-              ctx.lineTo(rightJaw.x, rightJaw.y); // UP to right jaw point
+              ctx.lineTo(w, 0);           // top
+              ctx.lineTo(w, h);           // right side full height (keeps ALL side hair)
+              ctx.lineTo(neckRight, h);   // across bottom to neck right boundary
+              ctx.lineTo(neckRight, neckRightY); // UP to jaw curve at neck right
 
-              // Draw smooth curve through jawline points (right to left)
-              for (let i = jawPoints.length - 1; i > 0; i--) {
-                const cur = jawPoints[i];
-                const prev = jawPoints[i - 1];
+              // Follow jawline curve from right to left (only neck zone portion)
+              for (let i = neckJawPts.length - 1; i > 0; i--) {
+                const cur = neckJawPts[i];
+                const prev = neckJawPts[i - 1];
                 const cpX = (cur.x + prev.x) / 2;
                 const cpY = (cur.y + prev.y) / 2;
                 ctx.quadraticCurveTo(cur.x, cur.y, cpX, cpY);
               }
 
-              // Left jaw point → down to bottom → across to left edge → up to top
-              ctx.lineTo(leftJaw.x, leftJaw.y);
-              ctx.lineTo(leftJaw.x, h);  // DOWN to bottom (preserves side hair)
-              ctx.lineTo(0, h);         // across bottom
-              ctx.lineTo(0, 0);         // left side up
+              ctx.lineTo(neckLeft, neckLeftY);  // end at neck left boundary on jaw
+              ctx.lineTo(neckLeft, h);    // DOWN to bottom
+              ctx.lineTo(0, h);           // across bottom left
+              ctx.lineTo(0, 0);           // left side full height (keeps ALL side hair)
 
               ctx.closePath();
               ctx.fill();
