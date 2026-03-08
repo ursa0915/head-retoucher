@@ -1357,7 +1357,6 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
             const neckLeft = faceCenterX - jawWidth * 0.4;
             const neckRight = faceCenterX + jawWidth * 0.4;
             const neckStartY = chinY + 5; // small buffer below chin
-            const fadeDistance = faceHeight * 0.15; // gradual fade zone
 
             // Load and process cutout
             const cutoutImg = new Image();
@@ -1380,11 +1379,8 @@ OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BL
                   // Check if pixel is skin-colored using HSL
                   const r = d[pi], g = d[pi + 1], b = d[pi + 2];
                   if (isSkinColor(r, g, b)) {
-                    // Distance below chin → fade factor
-                    const dist = y - neckStartY;
-                    const fade = Math.min(1, dist / fadeDistance);
-                    // Reduce alpha: more distant from chin = more transparent
-                    d[pi + 3] = Math.round(d[pi + 3] * (1 - fade));
+                    // HARD CUTOFF: skin below chin = fully transparent
+                    d[pi + 3] = 0;
                   }
                   // Non-skin pixels (hair) are left untouched
                 }
