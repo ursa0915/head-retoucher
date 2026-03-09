@@ -2,1096 +2,1106 @@
 <html lang="zh-TW">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>日光文創AI去背APP</title>
-  <meta name="description" content="日光文創AI去背APP — 上傳照片，自動去背、美膚、打光，產出專業大頭照。">
-  <link rel="icon" type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%23FF2D55'/%3E%3Cstop offset='25%25' stop-color='%23AF52DE'/%3E%3Cstop offset='50%25' stop-color='%235856D6'/%3E%3Cstop offset='75%25' stop-color='%23007AFF'/%3E%3Cstop offset='100%25' stop-color='%235AC8FA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ccircle cx='32' cy='24' r='9' fill='none' stroke='white' stroke-width='2.5'/%3E%3Cpath d='M18 48c0-8 6-14 14-14s14 6 14 14' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M44 18l3-3M44 18l3 3' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='44' y1='15' x2='44' y2='21' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs" crossorigin="anonymous"
-    type="module"></script>
-  <style>
-    *,
-    *::before,
-    *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    :root {
-      --bg-primary: #0d0d12;
-      --bg-secondary: #1a1a24;
-      --bg-card: rgba(255, 255, 255, 0.05);
-      --bg-card-hover: rgba(255, 255, 255, 0.08);
-      --border: rgba(255, 255, 255, 0.08);
-      --border-accent: rgba(88, 86, 214, 0.35);
-      --text-primary: #f0f0f5;
-      --text-secondary: #8e8e93;
-      --text-muted: #48484a;
-      --siri-gradient: linear-gradient(135deg, #FF2D55, #AF52DE, #5856D6, #007AFF, #5AC8FA, #34C759);
-      --siri-gradient-h: linear-gradient(90deg, #FF2D55, #AF52DE, #5856D6, #007AFF, #5AC8FA, #34C759);
-      --siri-glow: 0 4px 24px rgba(88, 86, 214, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
-      --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 0.5px 1px rgba(0, 0, 0, 0.2);
-      --card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
-      --radius: 20px;
-      --radius-sm: 12px;
-      --transition: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      min-height: 100vh;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* Siri Ambient Background */
-    .bg-mesh {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
-    .bg-mesh::before {
-      content: '';
-      position: absolute;
-      width: 800px;
-      height: 800px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(90, 200, 250, 0.08) 0%, transparent 70%);
-      top: -300px;
-      right: -200px;
-      animation: siriFloat1 25s ease-in-out infinite;
-    }
-
-    .bg-mesh::after {
-      content: '';
-      position: absolute;
-      width: 600px;
-      height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(175, 82, 222, 0.07) 0%, transparent 70%);
-      bottom: -200px;
-      left: -150px;
-      animation: siriFloat2 30s ease-in-out infinite;
-    }
-
-    @keyframes siriFloat1 {
-
-      0%,
-      100% {
-        transform: translate(0, 0) scale(1);
-        opacity: 0.6;
-      }
-
-      50% {
-        transform: translate(-80px, 60px) scale(1.15);
-        opacity: 1;
-      }
-    }
-
-    @keyframes siriFloat2 {
-
-      0%,
-      100% {
-        transform: translate(0, 0) scale(1);
-        opacity: 0.5;
-      }
-
-      50% {
-        transform: translate(60px, -40px) scale(1.1);
-        opacity: 0.9;
-      }
-    }
-
-    .container {
-      position: relative;
-      z-index: 1;
-      max-width: 1060px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
-    }
-
-    /* Header */
-    .header {
-      text-align: center;
-      margin-bottom: 52px;
-    }
-
-    .app-icon-wrap {
-      margin-bottom: 12px;
-    }
-
-    .app-icon {
-      filter: drop-shadow(0 4px 16px rgba(88, 86, 214, 0.4));
-    }
-
-    .header-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 16px;
-      border-radius: 100px;
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      letter-spacing: 0.3px;
-      margin-bottom: 24px;
-      box-shadow: var(--card-shadow);
-    }
-
-    .header-badge .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--siri-gradient);
-      animation: siriPulse 3s ease-in-out infinite;
-    }
-
-    @keyframes siriPulse {
-
-      0%,
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-
-      50% {
-        opacity: 0.5;
-        transform: scale(0.85);
-      }
-    }
-
-    .header h1 {
-      font-size: clamp(34px, 5vw, 56px);
-      font-weight: 700;
-      letter-spacing: -1.5px;
-      background: var(--siri-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      line-height: 1.1;
-      margin-bottom: 14px;
-    }
-
-    .header p {
-      font-size: 17px;
-      color: var(--text-secondary);
-      max-width: 480px;
-      margin: 0 auto;
-      line-height: 1.65;
-      font-weight: 400;
-    }
-
-    /* Mode Selector */
-    .mode-selector {
-      margin-bottom: 20px;
-    }
-
-    .mode-label {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
-    }
-
-    .mode-toggle {
-      display: flex;
-      gap: 10px;
-    }
-
-    .mode-btn {
-      flex: 1;
-      padding: 14px 16px;
-      border-radius: var(--radius);
-      border: 1.5px solid rgba(255, 255, 255, 0.1);
-      background: var(--bg-primary);
-      cursor: pointer;
-      transition: var(--transition);
-      text-align: left;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .mode-btn:hover {
-      border-color: rgba(255, 255, 255, 0.2);
-      background: var(--bg-secondary);
-    }
-
-    .mode-btn.active {
-      border-color: #007AFF;
-      border-width: 2px;
-      background: linear-gradient(135deg, rgba(0, 122, 255, 0.25), rgba(88, 86, 214, 0.15));
-      box-shadow: 0 0 24px rgba(0, 122, 255, 0.3), inset 0 0 12px rgba(0, 122, 255, 0.08);
-      position: relative;
-    }
-
-    .mode-btn.active::after {
-      content: '✓';
-      position: absolute;
-      top: 8px;
-      right: 12px;
-      font-size: 1rem;
-      font-weight: 700;
-      color: #007AFF;
-    }
-
-    .mode-btn.active .mode-text {
-      color: #007AFF;
-    }
-
-    .mode-icon {
-      display: flex;
-      align-items: center;
-      color: var(--text-secondary);
-    }
-
-    .mode-btn.active .mode-icon {
-      color: #007AFF;
-    }
-
-    .mode-text {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .mode-desc {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-    }
-
-    /* Upload Zone */
-    .upload-zone {
-      position: relative;
-      border: 1.5px dashed rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius);
-      padding: 64px 40px;
-      text-align: center;
-      cursor: pointer;
-      transition: var(--transition);
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      overflow: hidden;
-      box-shadow: var(--card-shadow);
-    }
-
-    .upload-zone::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: var(--siri-gradient);
-      opacity: 0;
-      transition: opacity 0.5s;
-      border-radius: var(--radius);
-    }
-
-    .upload-zone:hover,
-    .upload-zone.dragover {
-      border-color: rgba(88, 86, 214, 0.4);
-      box-shadow: var(--card-shadow-hover);
-      transform: translateY(-1px);
-    }
-
-    .upload-zone:hover::before,
-    .upload-zone.dragover::before {
-      opacity: 0.03;
-    }
-
-    .upload-zone .icon {
-      position: relative;
-      z-index: 1;
-      width: 56px;
-      height: 56px;
-      margin: 0 auto 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .upload-zone .icon svg {
-      width: 56px;
-      height: 56px;
-    }
-
-    .upload-zone h3 {
-      position: relative;
-      z-index: 1;
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--text-primary);
-    }
-
-    .upload-zone p {
-      position: relative;
-      z-index: 1;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-
-    .upload-zone input[type="file"] {
-      display: none;
-    }
-
-    /* Queue Section */
-    .queue-section {
-      margin-top: 36px;
-    }
-
-    .queue-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 18px;
-    }
-
-    .queue-header h2 {
-      font-size: 20px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--text-primary);
-    }
-
-    .queue-header h2 svg {
-      width: 22px;
-      height: 22px;
-      flex-shrink: 0;
-    }
-
-    .queue-count {
-      font-size: 13px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 22px;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-      text-decoration: none;
-    }
-
-    .btn svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    .btn-primary {
-      background: var(--siri-gradient);
-      color: #fff;
-      box-shadow: 0 4px 16px rgba(88, 86, 214, 0.2);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 24px rgba(88, 86, 214, 0.3);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .btn-secondary {
-      background: var(--bg-card);
-      backdrop-filter: blur(12px);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      box-shadow: var(--card-shadow);
-    }
-
-    .btn-secondary:hover {
-      background: var(--bg-card-hover);
-      border-color: var(--border-accent);
-      box-shadow: var(--card-shadow-hover);
-    }
-
-    .btn-danger {
-      background: rgba(255, 45, 85, 0.06);
-      color: #FF2D55;
-      border: 1px solid rgba(255, 45, 85, 0.15);
-    }
-
-    .btn-danger:hover {
-      background: rgba(255, 45, 85, 0.12);
-    }
-
-    .btn-sm {
-      padding: 7px 14px;
-      font-size: 12px;
-      border-radius: 10px;
-    }
-
-    /* Image Queue Grid */
-    .queue-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 16px;
-    }
-
-    .queue-item {
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      transition: var(--transition);
-      animation: fadeInUp 0.45s ease-out;
-      box-shadow: var(--card-shadow);
-    }
-
-    .queue-item:hover {
-      border-color: var(--border-accent);
-      box-shadow: var(--card-shadow-hover);
-      transform: translateY(-2px);
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .queue-item-images {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1px;
-      background: var(--border);
-      min-height: 200px;
-    }
-
-    .queue-item-images .img-panel {
-      position: relative;
-      background: #1a1a24;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    .queue-item-images .img-panel img {
-      width: 100%;
-      height: 200px;
-      object-fit: contain;
-      padding: 10px;
-    }
-
-    .img-label {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(8px);
-      text-transform: uppercase;
-    }
-
-    .img-label.original {
-      color: #5AC8FA;
-    }
-
-    .img-label.result {
-      color: #AF52DE;
-    }
-
-    .queue-item-footer {
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .queue-item-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-    }
-
-    .status-icon {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-
-    .status-icon.pending {
-      background: var(--text-muted);
-    }
-
-    .status-icon.processing {
-      background: var(--siri-gradient);
-      animation: siriPulse 1.2s ease-in-out infinite;
-    }
-
-    .status-icon.done {
-      background: #34C759;
-    }
-
-    .status-icon.error {
-      background: #FF2D55;
-    }
-
-    .queue-item-actions {
-      display: flex;
-      gap: 6px;
-    }
-
-    .placeholder-panel {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-size: 12px;
-      gap: 8px;
-    }
-
-    /* Progress Bar — Siri gradient */
-    .progress-bar-container {
-      width: 100%;
-      height: 3px;
-      background: rgba(255, 255, 255, 0.06);
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: var(--siri-gradient-h);
-      background-size: 200% 100%;
-      width: 0%;
-      transition: width 0.5s ease;
-    }
-
-    .progress-bar.indeterminate {
-      width: 30%;
-      animation: indeterminate 1.5s ease-in-out infinite;
-    }
-
-    @keyframes indeterminate {
-      0% {
-        transform: translateX(-100%);
-      }
-
-      100% {
-        transform: translateX(450%);
-      }
-    }
-
-    /* Actions Bar */
-    .actions-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 24px;
-      padding: 16px 20px;
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--card-shadow);
-    }
-
-    .actions-bar-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    /* Toast */
-    .toast-container {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .toast {
-      padding: 13px 22px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 500;
-      animation: toastIn 0.35s ease-out;
-      max-width: 360px;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-    }
-
-    .toast.success {
-      background: rgba(52, 199, 89, 0.12);
-      border: 1px solid rgba(52, 199, 89, 0.2);
-      color: #34d399;
-    }
-
-    .toast.error {
-      background: rgba(255, 45, 85, 0.1);
-      border: 1px solid rgba(255, 45, 85, 0.2);
-      color: #ff6b81;
-    }
-
-    .toast.info {
-      background: rgba(88, 86, 214, 0.1);
-      border: 1px solid rgba(88, 86, 214, 0.18);
-      color: #a78bfa;
-    }
-
-    @keyframes toastIn {
-      from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.96);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
-    /* Modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 999;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .modal-overlay.active {
-      display: flex;
-    }
-
-    .modal-overlay img {
-      max-width: 90vw;
-      max-height: 90vh;
-      object-fit: contain;
-      border-radius: 16px;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Spinner — Siri style */
-    .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid rgba(0, 0, 0, 0.06);
-      border-top-color: #5856D6;
-      border-right-color: #AF52DE;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    /* Responsive */
-    @media (max-width: 640px) {
-      .container {
-        padding: 28px 16px 60px;
-      }
-
-      .upload-zone {
-        padding: 48px 20px;
-      }
-
-      .queue-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .actions-bar {
-        flex-direction: column;
-      }
-
-      .actions-bar-left {
-        width: 100%;
-        justify-content: center;
-      }
-    }
-
-    /* ===== Login Overlay ===== */
-    .login-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 9999;
-      background: var(--bg-primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .login-overlay.hidden {
-      display: none;
-    }
-
-    .login-box {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 40px 36px;
-      width: 360px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      text-align: center;
-    }
-
-    .login-box h2 {
-      font-size: 1.5rem;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-
-    .login-box p {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      margin-bottom: 24px;
-    }
-
-    .login-box input {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      font-size: 0.95rem;
-      outline: none;
-      margin-bottom: 12px;
-      transition: border 0.2s;
-      box-sizing: border-box;
-    }
-
-    .login-box input:focus {
-      border-color: var(--accent-primary);
-    }
-
-    .login-box .login-btn {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 10px;
-      background: linear-gradient(135deg, var(--accent-primary), #5856D6);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 8px;
-      transition: opacity 0.2s;
-    }
-
-    .login-box .login-btn:hover {
-      opacity: 0.85;
-    }
-
-    .login-error {
-      color: #FF453A;
-      font-size: 0.8rem;
-      margin-top: 8px;
-      min-height: 1.2em;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日光文創AI去背APP</title>
+    <meta name="description" content="日光文創AI去背APP — 上傳照片，自動去背、美膚、打光，產出專業大頭照。">
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%23FF2D55'/%3E%3Cstop offset='25%25' stop-color='%23AF52DE'/%3E%3Cstop offset='50%25' stop-color='%235856D6'/%3E%3Cstop offset='75%25' stop-color='%23007AFF'/%3E%3Cstop offset='100%25' stop-color='%235AC8FA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ccircle cx='32' cy='24' r='9' fill='none' stroke='white' stroke-width='2.5'/%3E%3Cpath d='M18 48c0-8 6-14 14-14s14 6 14 14' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M44 18l3-3M44 18l3 3' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='44' y1='15' x2='44' y2='21' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs" crossorigin="anonymous"
+        type="module"></script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d0d12;
+            --bg-secondary: #1a1a24;
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(88, 86, 214, 0.35);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8e8e93;
+            --text-muted: #48484a;
+            --siri-gradient: linear-gradient(135deg, #FF2D55, #AF52DE, #5856D6, #007AFF, #5AC8FA, #34C759);
+            --siri-gradient-h: linear-gradient(90deg, #FF2D55, #AF52DE, #5856D6, #007AFF, #5AC8FA, #34C759);
+            --siri-glow: 0 4px 24px rgba(88, 86, 214, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
+            --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 0.5px 1px rgba(0, 0, 0, 0.2);
+            --card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+            --radius: 20px;
+            --radius-sm: 12px;
+            --transition: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Siri Ambient Background */
+        .bg-mesh {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bg-mesh::before {
+            content: '';
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(90, 200, 250, 0.08) 0%, transparent 70%);
+            top: -300px;
+            right: -200px;
+            animation: siriFloat1 25s ease-in-out infinite;
+        }
+
+        .bg-mesh::after {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(175, 82, 222, 0.07) 0%, transparent 70%);
+            bottom: -200px;
+            left: -150px;
+            animation: siriFloat2 30s ease-in-out infinite;
+        }
+
+        @keyframes siriFloat1 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+                opacity: 0.6;
+            }
+
+            50% {
+                transform: translate(-80px, 60px) scale(1.15);
+                opacity: 1;
+            }
+        }
+
+        @keyframes siriFloat2 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: translate(60px, -40px) scale(1.1);
+                opacity: 0.9;
+            }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 52px;
+        }
+
+        .app-icon-wrap {
+            margin-bottom: 12px;
+        }
+
+        .app-icon {
+            filter: drop-shadow(0 4px 16px rgba(88, 86, 214, 0.4));
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 16px;
+            border-radius: 100px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            letter-spacing: 0.3px;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .header-badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--siri-gradient);
+            animation: siriPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes siriPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.85);
+            }
+        }
+
+        .header h1 {
+            font-size: clamp(34px, 5vw, 56px);
+            font-weight: 700;
+            letter-spacing: -1.5px;
+            background: var(--siri-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+            margin-bottom: 14px;
+        }
+
+        .header p {
+            font-size: 17px;
+            color: var(--text-secondary);
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.65;
+            font-weight: 400;
+        }
+
+        /* Mode Selector */
+        .mode-selector {
+            margin-bottom: 20px;
+        }
+
+        .mode-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 14px 16px;
+            border-radius: var(--radius);
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-primary);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mode-btn:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: var(--bg-secondary);
+        }
+
+        .mode-btn.active {
+            border-color: #007AFF;
+            border-width: 2px;
+            background: linear-gradient(135deg, rgba(0, 122, 255, 0.25), rgba(88, 86, 214, 0.15));
+            box-shadow: 0 0 24px rgba(0, 122, 255, 0.3), inset 0 0 12px rgba(0, 122, 255, 0.08);
+            position: relative;
+        }
+
+        .mode-btn.active::after {
+            content: '✓';
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #007AFF;
+        }
+
+        .mode-btn.active .mode-text {
+            color: #007AFF;
+        }
+
+        .mode-icon {
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+        }
+
+        .mode-btn.active .mode-icon {
+            color: #007AFF;
+        }
+
+        .mode-text {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .mode-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            position: relative;
+            border: 1.5px dashed rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius);
+            padding: 64px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--siri-gradient);
+            opacity: 0;
+            transition: opacity 0.5s;
+            border-radius: var(--radius);
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: rgba(88, 86, 214, 0.4);
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-1px);
+        }
+
+        .upload-zone:hover::before,
+        .upload-zone.dragover::before {
+            opacity: 0.03;
+        }
+
+        .upload-zone .icon {
+            position: relative;
+            z-index: 1;
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-zone .icon svg {
+            width: 56px;
+            height: 56px;
+        }
+
+        .upload-zone h3 {
+            position: relative;
+            z-index: 1;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .upload-zone p {
+            position: relative;
+            z-index: 1;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+
+        /* Queue Section */
+        .queue-section {
+            margin-top: 36px;
+        }
+
+        .queue-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .queue-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-primary);
+        }
+
+        .queue-header h2 svg {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .queue-count {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 22px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        .btn-primary {
+            background: var(--siri-gradient);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(88, 86, 214, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(88, 86, 214, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            box-shadow: var(--card-shadow);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-accent);
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        .btn-danger {
+            background: rgba(255, 45, 85, 0.06);
+            color: #FF2D55;
+            border: 1px solid rgba(255, 45, 85, 0.15);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 45, 85, 0.12);
+        }
+
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 12px;
+            border-radius: 10px;
+        }
+
+        /* Image Queue Grid */
+        .queue-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .queue-item {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: var(--transition);
+            animation: fadeInUp 0.45s ease-out;
+            box-shadow: var(--card-shadow);
+        }
+
+        .queue-item:hover {
+            border-color: var(--border-accent);
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-2px);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .queue-item-images {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border);
+            min-height: 200px;
+        }
+
+        .queue-item-images .img-panel {
+            position: relative;
+            background: #1a1a24;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .queue-item-images .img-panel img {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            padding: 10px;
+        }
+
+        .img-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            text-transform: uppercase;
+        }
+
+        .img-label.original {
+            color: #5AC8FA;
+        }
+
+        .img-label.result {
+            color: #AF52DE;
+        }
+
+        .queue-item-footer {
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .queue-item-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-icon.pending {
+            background: var(--text-muted);
+        }
+
+        .status-icon.processing {
+            background: var(--siri-gradient);
+            animation: siriPulse 1.2s ease-in-out infinite;
+        }
+
+        .status-icon.done {
+            background: #34C759;
+        }
+
+        .status-icon.error {
+            background: #FF2D55;
+        }
+
+        .queue-item-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .placeholder-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            gap: 8px;
+        }
+
+        /* Progress Bar — Siri gradient */
+        .progress-bar-container {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--siri-gradient-h);
+            background-size: 200% 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .progress-bar.indeterminate {
+            width: 30%;
+            animation: indeterminate 1.5s ease-in-out infinite;
+        }
+
+        @keyframes indeterminate {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(450%);
+            }
+        }
+
+        /* Actions Bar */
+        .actions-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 24px;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--card-shadow);
+        }
+
+        .actions-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 13px 22px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            animation: toastIn 0.35s ease-out;
+            max-width: 360px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .toast.success {
+            background: rgba(52, 199, 89, 0.12);
+            border: 1px solid rgba(52, 199, 89, 0.2);
+            color: #34d399;
+        }
+
+        .toast.error {
+            background: rgba(255, 45, 85, 0.1);
+            border: 1px solid rgba(255, 45, 85, 0.2);
+            color: #ff6b81;
+        }
+
+        .toast.info {
+            background: rgba(88, 86, 214, 0.1);
+            border: 1px solid rgba(88, 86, 214, 0.18);
+            color: #a78bfa;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.96);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-overlay img {
+            max-width: 90vw;
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 16px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Spinner — Siri style */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 0, 0, 0.06);
+            border-top-color: #5856D6;
+            border-right-color: #AF52DE;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container {
+                padding: 28px 16px 60px;
+            }
+
+            .upload-zone {
+                padding: 48px 20px;
+            }
+
+            .queue-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions-bar {
+                flex-direction: column;
+            }
+
+            .actions-bar-left {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* ===== Login Overlay ===== */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-overlay.hidden {
+            display: none;
+        }
+
+        .login-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px 36px;
+            width: 360px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .login-box h2 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .login-box p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            outline: none;
+            margin-bottom: 12px;
+            transition: border 0.2s;
+            box-sizing: border-box;
+        }
+
+        .login-box input:focus {
+            border-color: var(--accent-primary);
+        }
+
+        .login-box .login-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent-primary), #5856D6);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .login-box .login-btn:hover {
+            opacity: 0.85;
+        }
+
+        .login-error {
+            color: #FF453A;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            min-height: 1.2em;
+        }
+    </style>
 </head>
 
 <body>
-  <div class="bg-mesh"></div>
+    <div class="bg-mesh"></div>
 
-  <!-- Login Overlay -->
-  <div class="login-overlay" id="loginOverlay">
-    <div class="login-box">
-      <h2>🔐 日光文創AI去背APP</h2>
-      <p>請輸入帳號密碼登入</p>
-      <input type="text" id="loginUser" placeholder="帳號" autocomplete="username">
-      <input type="password" id="loginPass" placeholder="密碼" autocomplete="current-password">
-      <button class="login-btn" id="loginBtn">登入</button>
-      <div class="login-error" id="loginError"></div>
-    </div>
-  </div>
-
-  <div class="container" id="mainApp" style="display:none;">
-    <!-- Header -->
-    <header class="header">
-      <div class="app-icon-wrap">
-        <svg class="app-icon" width="56" height="56" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="appGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#FF2D55" />
-              <stop offset="25%" stop-color="#AF52DE" />
-              <stop offset="50%" stop-color="#5856D6" />
-              <stop offset="75%" stop-color="#007AFF" />
-              <stop offset="100%" stop-color="#5AC8FA" />
-            </linearGradient>
-          </defs>
-          <rect width="64" height="64" rx="14" fill="url(#appGrad)" />
-          <circle cx="32" cy="24" r="9" fill="none" stroke="white" stroke-width="2.5" />
-          <path d="M18 48c0-8 6-14 14-14s14 6 14 14" fill="none" stroke="white" stroke-width="2.5"
-            stroke-linecap="round" />
-          <line x1="44" y1="14" x2="44" y2="22" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.8" />
-          <line x1="40" y1="18" x2="48" y2="18" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.8" />
-        </svg>
-      </div>
-      <div class="header-badge">
-        <span class="dot"></span>
-        Powered by Gemini AI
-      </div>
-      <h1>日光文創AI去背APP</h1>
-      <p>上傳照片，自動去背、美膚、打光，產出專業大頭照</p>
-    </header>
-
-    <!-- Mode Selector -->
-    <div class="mode-selector">
-      <div class="mode-label">處理模式</div>
-      <div class="mode-toggle">
-        <button class="mode-btn active" id="modeAI" onclick="setMode('ai')">
-          <span class="mode-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z" />
-              <path d="M5 3l.5 1.5L7 5l-1.5.5L5 7l-.5-1.5L3 5l1.5-.5z" opacity="0.6" />
-              <path d="M19 17l.5 1.5L21 19l-1.5.5-.5 1.5-.5-1.5L17 19l1.5-.5z" opacity="0.6" />
-            </svg></span>
-          <span class="mode-text">AI 重繪</span>
-          <span class="mode-desc">AI 自動美顏去背</span>
-        </button>
-        <button class="mode-btn" id="modeMask" onclick="setMode('mask')">
-          <span class="mode-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="3" />
-              <path d="M3 9h18" />
-              <path d="M9 3v18" />
-              <circle cx="16" cy="16" r="3" stroke-dasharray="2 2" />
-            </svg></span>
-          <span class="mode-text">遮罩去背</span>
-          <span class="mode-desc">原圖像素 + 脖子清除</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Upload Zone -->
-    <div class="upload-zone" id="uploadZone">
-      <div class="upload-icon">
-        <svg width="56" height="50" viewBox="0 0 56 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="siriGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="var(--accent-primary)" />
-              <stop offset="100%" stop-color="var(--accent-secondary)" />
-            </linearGradient>
-          </defs>
-          <rect x="6" y="10" width="44" height="34" rx="4" stroke="url(#siriGrad)" stroke-width="1.8" fill="none" />
-          <circle cx="20" cy="24" r="5" stroke="url(#siriGrad)" stroke-width="1.5" fill="none" />
-          <path d="M6 36l12-10 8 6 10-12 14 16" stroke="url(#siriGrad)" stroke-width="1.5" fill="none"
-            stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M28 4v8M24 8l4-4 4 4" stroke="url(#siriGrad)" stroke-width="1.5" stroke-linecap="round"
-            stroke-linejoin="round" fill="none" />
-        </svg>
-      </div>
-      <h3>拖放照片至此，或點擊上傳</h3>
-      <p>支援 JPG、PNG、WEBP｜可同時上傳多張</p>
-      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp">
-    </div>
-
-    <!-- Queue -->
-    <div class="queue-section" id="queueSection" style="display:none;">
-      <div class="queue-header">
-        <h2>
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="sg2" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FF2D55" />
-                <stop offset="50%" stop-color="#5856D6" />
-                <stop offset="100%" stop-color="#5AC8FA" />
-              </linearGradient>
-            </defs>
-            <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5" fill="none" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5" fill="none" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5" fill="none" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5" fill="none" />
-          </svg>
-          處理佇列
-        </h2>
-        <span class="queue-count" id="queueCount"></span>
-      </div>
-      <div class="queue-grid" id="queueGrid"></div>
-
-      <div class="actions-bar">
-        <div class="actions-bar-left">
-          <button class="btn btn-primary" id="processAllBtn" onclick="processAll()">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path d="M3 2l11 6-11 6V2z" fill="currentColor" />
-            </svg>
-            開始全部處理
-          </button>
-          <button class="btn btn-secondary" id="addMoreBtn" onclick="document.getElementById('fileInput').click()">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-            再加照片
-          </button>
+    <!-- Login Overlay -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-box">
+            <h2>🔐 日光文創AI去背APP</h2>
+            <p>請輸入帳號密碼登入</p>
+            <input type="text" id="loginUser" placeholder="帳號" autocomplete="username">
+            <input type="password" id="loginPass" placeholder="密碼" autocomplete="current-password">
+            <button class="login-btn" id="loginBtn">登入</button>
+            <div class="login-error" id="loginError"></div>
         </div>
-        <div>
-          <button class="btn btn-secondary" id="downloadAllBtn" onclick="downloadAll()" style="display:none;">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                stroke-linejoin="round" />
-            </svg>
-            全部下載
-          </button>
-          <button class="btn btn-danger btn-sm" onclick="clearAll()">
-            <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-            清除全部
-          </button>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <!-- Full Image Modal -->
-  <div class="modal-overlay" id="imageModal" onclick="closeModal()">
-    <img id="modalImage" src="" alt="Full preview">
-  </div>
+    <div class="container" id="mainApp" style="display:none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="app-icon-wrap">
+                <svg class="app-icon" width="56" height="56" viewBox="0 0 64 64" fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="appGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#FF2D55" />
+                            <stop offset="25%" stop-color="#AF52DE" />
+                            <stop offset="50%" stop-color="#5856D6" />
+                            <stop offset="75%" stop-color="#007AFF" />
+                            <stop offset="100%" stop-color="#5AC8FA" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="64" height="64" rx="14" fill="url(#appGrad)" />
+                    <circle cx="32" cy="24" r="9" fill="none" stroke="white" stroke-width="2.5" />
+                    <path d="M18 48c0-8 6-14 14-14s14 6 14 14" fill="none" stroke="white" stroke-width="2.5"
+                        stroke-linecap="round" />
+                    <line x1="44" y1="14" x2="44" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"
+                        opacity="0.8" />
+                    <line x1="40" y1="18" x2="48" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"
+                        opacity="0.8" />
+                </svg>
+            </div>
+            <div class="header-badge">
+                <span class="dot"></span>
+                Powered by Gemini AI
+            </div>
+            <h1>日光文創AI去背APP</h1>
+            <p>上傳照片，自動去背、美膚、打光，產出專業大頭照</p>
+        </header>
 
-  <!-- Toast Container -->
-  <div class="toast-container" id="toastContainer"></div>
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+            <div class="mode-label">處理模式</div>
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="modeAI" onclick="setMode('ai')">
+                    <span class="mode-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z" />
+                            <path d="M5 3l.5 1.5L7 5l-1.5.5L5 7l-.5-1.5L3 5l1.5-.5z" opacity="0.6" />
+                            <path d="M19 17l.5 1.5L21 19l-1.5.5-.5 1.5-.5-1.5L17 19l1.5-.5z" opacity="0.6" />
+                        </svg></span>
+                    <span class="mode-text">AI 重繪</span>
+                    <span class="mode-desc">AI 自動美顏去背</span>
+                </button>
+                <button class="mode-btn" id="modeMask" onclick="setMode('mask')">
+                    <span class="mode-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="3" />
+                            <path d="M3 9h18" />
+                            <path d="M9 3v18" />
+                            <circle cx="16" cy="16" r="3" stroke-dasharray="2 2" />
+                        </svg></span>
+                    <span class="mode-text">遮罩去背</span>
+                    <span class="mode-desc">原圖像素 + 脖子清除</span>
+                </button>
+            </div>
+        </div>
 
-  <script type="module">
-    // ============================================================
-    //  Authentication
-    // ============================================================
-    const USERS = {
-      'disp': '89d47c1440229f0ad7d55d080ece40b004d238c5e39c497b75baf3857372de7d',
-      'loherb': '642f54472ec9b7291e29844169155dea874ad26537bd5f496d9827a88952b267',
-    };
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">
+                <svg width="56" height="50" viewBox="0 0 56 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="siriGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="var(--accent-primary)" />
+                            <stop offset="100%" stop-color="var(--accent-secondary)" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="6" y="10" width="44" height="34" rx="4" stroke="url(#siriGrad)" stroke-width="1.8"
+                        fill="none" />
+                    <circle cx="20" cy="24" r="5" stroke="url(#siriGrad)" stroke-width="1.5" fill="none" />
+                    <path d="M6 36l12-10 8 6 10-12 14 16" stroke="url(#siriGrad)" stroke-width="1.5" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M28 4v8M24 8l4-4 4 4" stroke="url(#siriGrad)" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" fill="none" />
+                </svg>
+            </div>
+            <h3>拖放照片至此，或點擊上傳</h3>
+            <p>支援 JPG、PNG、WEBP｜可同時上傳多張</p>
+            <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp">
+        </div>
 
-    async function sha256(str) {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
+        <!-- Queue -->
+        <div class="queue-section" id="queueSection" style="display:none;">
+            <div class="queue-header">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="sg2" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#FF2D55" />
+                                <stop offset="50%" stop-color="#5856D6" />
+                                <stop offset="100%" stop-color="#5AC8FA" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5"
+                            fill="none" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5"
+                            fill="none" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5"
+                            fill="none" />
+                        <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="url(#sg2)" stroke-width="1.5"
+                            fill="none" />
+                    </svg>
+                    處理佇列
+                </h2>
+                <span class="queue-count" id="queueCount"></span>
+            </div>
+            <div class="queue-grid" id="queueGrid"></div>
 
-    async function handleLogin() {
-      const user = document.getElementById('loginUser').value.trim();
-      const pass = document.getElementById('loginPass').value;
-      const err = document.getElementById('loginError');
-      if (!user || !pass) { err.textContent = '請輸入帳號和密碼'; return; }
-      const hash = await sha256(pass);
-      if (USERS[user] && USERS[user] === hash) {
-        sessionStorage.setItem('authed', '1');
-        document.getElementById('loginOverlay').classList.add('hidden');
-        document.getElementById('mainApp').style.display = '';
-        err.textContent = '';
-      } else {
-        err.textContent = '帳號或密碼錯誤';
-      }
-    }
+            <div class="actions-bar">
+                <div class="actions-bar-left">
+                    <button class="btn btn-primary" id="processAllBtn" onclick="processAll()">
+                        <svg viewBox="0 0 16 16" fill="none">
+                            <path d="M3 2l11 6-11 6V2z" fill="currentColor" />
+                        </svg>
+                        開始全部處理
+                    </button>
+                    <button class="btn btn-secondary" id="addMoreBtn"
+                        onclick="document.getElementById('fileInput').click()">
+                        <svg viewBox="0 0 16 16" fill="none">
+                            <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                        </svg>
+                        再加照片
+                    </button>
+                </div>
+                <div>
+                    <button class="btn btn-secondary" id="downloadAllBtn" onclick="downloadAll()" style="display:none;">
+                        <svg viewBox="0 0 16 16" fill="none">
+                            <path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        全部下載
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="clearAll()">
+                        <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px">
+                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" />
+                        </svg>
+                        清除全部
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    // Check session
-    if (sessionStorage.getItem('authed') === '1') {
-      document.getElementById('loginOverlay').classList.add('hidden');
-      document.getElementById('mainApp').style.display = '';
-    }
+    <!-- Full Image Modal -->
+    <div class="modal-overlay" id="imageModal" onclick="closeModal()">
+        <img id="modalImage" src="" alt="Full preview">
+    </div>
 
-    document.getElementById('loginBtn').addEventListener('click', handleLogin);
-    document.getElementById('loginPass').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleLogin();
-    });
-    document.getElementById('loginUser').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('loginPass').focus();
-    });
-    // ============================================================
-    //  MediaPipe FaceLandmarker Init
-    // ============================================================
-    const { FaceLandmarker, FilesetResolver } = await import(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs'
-    );
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
-    let faceLandmarker = null;
-    async function initFaceLandmarker() {
-      try {
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-        );
-        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-            delegate: 'GPU'
-          },
-          runningMode: 'IMAGE',
-          numFaces: 1
+    <script type="module">
+        // ============================================================
+        //  Authentication
+        // ============================================================
+        const USERS = {
+            'disp': '89d47c1440229f0ad7d55d080ece40b004d238c5e39c497b75baf3857372de7d',
+            'loherb': '642f54472ec9b7291e29844169155dea874ad26537bd5f496d9827a88952b267',
+        };
+
+        async function sha256(str) {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            const err = document.getElementById('loginError');
+            if (!user || !pass) { err.textContent = '請輸入帳號和密碼'; return; }
+            const hash = await sha256(pass);
+            if (USERS[user] && USERS[user] === hash) {
+                sessionStorage.setItem('authed', '1');
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('mainApp').style.display = '';
+                err.textContent = '';
+            } else {
+                err.textContent = '帳號或密碼錯誤';
+            }
+        }
+
+        // Check session
+        if (sessionStorage.getItem('authed') === '1') {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('mainApp').style.display = '';
+        }
+
+        document.getElementById('loginBtn').addEventListener('click', handleLogin);
+        document.getElementById('loginPass').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleLogin();
         });
-        console.log('MediaPipe FaceLandmarker loaded successfully');
-      } catch (err) {
-        console.warn('MediaPipe FaceLandmarker failed to load, will use fallback:', err);
-      }
-    }
-    // Start loading in background
-    initFaceLandmarker();
+        document.getElementById('loginUser').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('loginPass').focus();
+        });
+        // ============================================================
+        //  MediaPipe FaceLandmarker Init
+        // ============================================================
+        const { FaceLandmarker, FilesetResolver } = await import(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs'
+        );
 
-    // ============================================================
-    //  Gemini API Config (key encoded to prevent scanner detection)
-    // ============================================================
-    const GEMINI_MODEL = 'gemini-2.0-flash-exp-image-generation';
-    const GEMINI_MODEL_PRO = 'gemini-3-pro-image-preview';
-    const _k = atob('QUl6YVN5RExKV0hTN3p0NTN5Mk5sS2hfXzB5QTFoM0NFNnp6Qzk0');
+        let faceLandmarker = null;
+        async function initFaceLandmarker() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks(
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+                );
+                faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                        delegate: 'GPU'
+                    },
+                    runningMode: 'IMAGE',
+                    numFaces: 1
+                });
+                console.log('MediaPipe FaceLandmarker loaded successfully');
+            } catch (err) {
+                console.warn('MediaPipe FaceLandmarker failed to load, will use fallback:', err);
+            }
+        }
+        // Start loading in background
+        initFaceLandmarker();
 
-    function getGeminiUrl(model) {
-      const m = model || GEMINI_MODEL;
-      return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${_k}`;
-    }
+        // ============================================================
+        //  Gemini API Config (key encoded to prevent scanner detection)
+        // ============================================================
+        const GEMINI_MODEL = 'gemini-2.0-flash-exp-image-generation';
+        const GEMINI_MODEL_PRO = 'gemini-3-pro-image-preview';
+        const _k = atob('QUl6YVN5RExKV0hTN3p0NTN5Mk5sS2hfXzB5QTFoM0NFNnp6Qzk0');
 
-    // ===== BEAUTY PROMPT (Pass 1) =====
-    const BEAUTY_PROMPT = `CRITICAL: FREEZE facial expression and head angle. Do NOT change the expression, mouth, eyes, eyebrows, head tilt, or head rotation. NOT EVEN SLIGHTLY. No mirroring or flipping.
+        function getGeminiUrl(model) {
+            const m = model || GEMINI_MODEL;
+            return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${_k}`;
+        }
+
+        // ===== BEAUTY PROMPT (Pass 1) =====
+        const BEAUTY_PROMPT = `CRITICAL: FREEZE facial expression and head angle. Do NOT change the expression, mouth, eyes, eyebrows, head tilt, or head rotation. NOT EVEN SLIGHTLY. No mirroring or flipping.
 
 Role: Expert Retoucher & Generative AI Artist.
 Task: Naturally brighten the face and optimize hair/skin while STRICTLY preserving the original angle and expression.
@@ -1115,8 +1125,8 @@ Task: Naturally brighten the face and optimize hair/skin while STRICTLY preservi
 OUTPUT: The retouched photo with a PURE WHITE (#FFFFFF) background. Head only, no neck, no shoulders.
 FINAL REMINDER: Expression and head angle MUST be IDENTICAL to input. No mirroring.`;
 
-    // ===== MASK PROMPT (Pass 2) =====
-    const MASK_PROMPT = `Task: Generate a HEAD SEGMENTATION MASK for the person in this photo.
+        // ===== MASK PROMPT (Pass 2) =====
+        const MASK_PROMPT = `Task: Generate a HEAD SEGMENTATION MASK for the person in this photo.
 
 RULES:
 - Output a BLACK AND WHITE image of the EXACT SAME dimensions as the input.
@@ -1143,8 +1153,8 @@ RULES:
 
 OUTPUT: Black and white mask. White = head + all hair. Black = remove. Neck = BLACK.`;
 
-    // ===== AI REDRAW PROMPT (Mode: AI Redraw) =====
-    const AI_REDRAW_PROMPT = `CRITICAL: Isolate HEAD ONLY (remove neck/body) and FREEZE facial expression and head angle.
+        // ===== AI REDRAW PROMPT (Mode: AI Redraw) =====
+        const AI_REDRAW_PROMPT = `CRITICAL: Isolate HEAD ONLY (remove neck/body) and FREEZE facial expression and head angle.
 Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face and optimize hair/skin while STRICTLY preserving the original angle and expression.
 
 ## ABSOLUTE FREEZE — DO NOT VIOLATE:
@@ -1172,8 +1182,8 @@ Role: Expert Retoucher & Generative AI Artist. Task: Naturally brighten the face
 
 REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
 
-    // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
-    const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
+        // ===== NECK REDRAW PROMPT (Pass 2 - redraw chin edge on cutout) =====
+        const NECK_REDRAW_PROMPT = `Task: Edit this head cutout image. Remove the NECK completely and create a precise, smooth curved jawline edge.
 
 ## ABSOLUTE RULES — DO NOT VIOLATE:
 1. EVERYTHING ABOVE THE JAWLINE must remain 100% PIXEL-IDENTICAL to the input. The face, eyes, nose, mouth, hair, ears, forehead — ZERO modifications above the jawline. Not even 1 pixel.
@@ -1197,84 +1207,84 @@ REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
 - Head with clean curved jawline edge. No neck. Face identical to input.`;
 
 
-    // ============================================================
-    //  State
-    // ============================================================
-    let queue = []; // { id, file, originalUrl, resultData, status: 'pending'|'processing'|'done'|'error', errorMsg }
-    let idCounter = 0;
-    let isProcessing = false;
-    let currentMode = 'ai'; // 'ai' or 'mask'
+        // ============================================================
+        //  State
+        // ============================================================
+        let queue = []; // { id, file, originalUrl, resultData, status: 'pending'|'processing'|'done'|'error', errorMsg }
+        let idCounter = 0;
+        let isProcessing = false;
+        let currentMode = 'ai'; // 'ai' or 'mask'
 
-    function setMode(mode) {
-      currentMode = mode;
-      document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
-      document.getElementById('modeMask').classList.toggle('active', mode === 'mask');
-    }
-    window.setMode = setMode;
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
+            document.getElementById('modeMask').classList.toggle('active', mode === 'mask');
+        }
+        window.setMode = setMode;
 
-    // ============================================================
-    //  DOM refs
-    // ============================================================
-    const uploadZone = document.getElementById('uploadZone');
-    const fileInput = document.getElementById('fileInput');
-    const queueSection = document.getElementById('queueSection');
-    const queueGrid = document.getElementById('queueGrid');
-    const queueCount = document.getElementById('queueCount');
-    const processAllBtn = document.getElementById('processAllBtn');
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
+        // ============================================================
+        //  DOM refs
+        // ============================================================
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const queueSection = document.getElementById('queueSection');
+        const queueGrid = document.getElementById('queueGrid');
+        const queueCount = document.getElementById('queueCount');
+        const processAllBtn = document.getElementById('processAllBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
 
-    // ============================================================
-    //  Upload handling
-    // ============================================================
-    uploadZone.addEventListener('click', () => fileInput.click());
+        // ============================================================
+        //  Upload handling
+        // ============================================================
+        uploadZone.addEventListener('click', () => fileInput.click());
 
-    uploadZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      uploadZone.classList.add('dragover');
-    });
-    uploadZone.addEventListener('dragleave', () => {
-      uploadZone.classList.remove('dragover');
-    });
-    uploadZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      uploadZone.classList.remove('dragover');
-      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-      if (files.length) addFiles(files);
-    });
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (files.length) addFiles(files);
+        });
 
-    fileInput.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length) addFiles(files);
-      fileInput.value = '';
-    });
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length) addFiles(files);
+            fileInput.value = '';
+        });
 
-    function addFiles(files) {
-      files.forEach(file => {
-        const id = ++idCounter;
-        const url = URL.createObjectURL(file);
-        queue.push({ id, file, originalUrl: url, resultData: null, status: 'pending', errorMsg: '' });
-      });
-      renderQueue();
-      showToast(`已加入 ${files.length} 張照片`, 'info');
-    }
+        function addFiles(files) {
+            files.forEach(file => {
+                const id = ++idCounter;
+                const url = URL.createObjectURL(file);
+                queue.push({ id, file, originalUrl: url, resultData: null, status: 'pending', errorMsg: '' });
+            });
+            renderQueue();
+            showToast(`已加入 ${files.length} 張照片`, 'info');
+        }
 
-    // ============================================================
-    //  Render
-    // ============================================================
-    function renderQueue() {
-      queueSection.style.display = queue.length ? 'block' : 'none';
+        // ============================================================
+        //  Render
+        // ============================================================
+        function renderQueue() {
+            queueSection.style.display = queue.length ? 'block' : 'none';
 
-      const doneCount = queue.filter(q => q.status === 'done').length;
-      const totalCount = queue.length;
-      queueCount.textContent = `${doneCount} / ${totalCount} 完成`;
+            const doneCount = queue.filter(q => q.status === 'done').length;
+            const totalCount = queue.length;
+            queueCount.textContent = `${doneCount} / ${totalCount} 完成`;
 
-      downloadAllBtn.style.display = doneCount > 0 ? 'inline-flex' : 'none';
-      processAllBtn.disabled = isProcessing;
-      processAllBtn.innerHTML = isProcessing
-        ? '<div class="spinner"></div> 處理中...'
-        : '<svg viewBox="0 0 16 16" fill="none"><path d="M3 2l11 6-11 6V2z" fill="currentColor"/></svg> 開始全部處理';
+            downloadAllBtn.style.display = doneCount > 0 ? 'inline-flex' : 'none';
+            processAllBtn.disabled = isProcessing;
+            processAllBtn.innerHTML = isProcessing
+                ? '<div class="spinner"></div> 處理中...'
+                : '<svg viewBox="0 0 16 16" fill="none"><path d="M3 2l11 6-11 6V2z" fill="currentColor"/></svg> 開始全部處理';
 
-      queueGrid.innerHTML = queue.map(item => `
+            queueGrid.innerHTML = queue.map(item => `
         <div class="queue-item" id="item-${item.id}">
           <div class="progress-bar-container">
             <div class="progress-bar ${item.status === 'processing' ? 'indeterminate' : ''}"
@@ -1288,17 +1298,17 @@ REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
             </div>
             <div class="img-panel">
               ${item.resultData
-          ? `<span class="img-label result">結果</span>
+                    ? `<span class="img-label result">結果</span>
                    <img src="data:${item.resultData.mimeType};base64,${item.resultData.data}" alt="Result"
                         onclick="openModal('data:${item.resultData.mimeType};base64,${item.resultData.data}')">`
-          : `<div class="placeholder-panel">
+                    : `<div class="placeholder-panel">
                      ${item.status === 'processing'
-            ? '<div class="spinner"></div><span>AI 處理中...</span>'
-            : item.status === 'error'
-              ? `<span style="color:#ef4444;">❌ ${item.errorMsg || '處理失敗'}</span>`
-              : '<span>等待處理</span>'}
+                        ? '<div class="spinner"></div><span>AI 處理中...</span>'
+                        : item.status === 'error'
+                            ? `<span style="color:#ef4444;">❌ ${item.errorMsg || '處理失敗'}</span>`
+                            : '<span>等待處理</span>'}
                    </div>`
-        }
+                }
             </div>
           </div>
           <div class="queue-item-footer">
@@ -1308,913 +1318,913 @@ REMINDER: Output PNG with TRANSPARENT background. Head only, no neck.`;
             </div>
             <div class="queue-item-actions">
               ${item.resultData
-          ? `<button class="btn btn-secondary btn-sm" onclick="downloadSingle(${item.id})"><svg viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 下載</button>`
-          : ''}
+                    ? `<button class="btn btn-secondary btn-sm" onclick="downloadSingle(${item.id})"><svg viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 下載</button>`
+                    : ''}
               ${item.status === 'error'
-          ? `<button class="btn btn-secondary btn-sm" onclick="retryOne(${item.id})"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0111.3-2.8M14 8a6 6 0 01-11.3 2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13 2v3.2h-3.2M3 14v-3.2h3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 重試</button>`
-          : ''}
+                    ? `<button class="btn btn-secondary btn-sm" onclick="retryOne(${item.id})"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0111.3-2.8M14 8a6 6 0 01-11.3 2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13 2v3.2h-3.2M3 14v-3.2h3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 重試</button>`
+                    : ''}
               <button class="btn btn-danger btn-sm" onclick="removeItem(${item.id})"><svg viewBox="0 0 16 16" fill="none" style="width:12px;height:12px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
             </div>
           </div>
         </div>
       `).join('');
-    }
-
-    function statusText(status) {
-      switch (status) {
-        case 'pending': return '等待中';
-        case 'processing': return 'AI 處理中';
-        case 'done': return '完成';
-        case 'error': return '失敗';
-        default: return status;
-      }
-    }
-
-    // ============================================================
-    //  Processing
-    // ============================================================
-    async function processAll() {
-      if (isProcessing) return;
-      const pending = queue.filter(q => q.status === 'pending' || q.status === 'error');
-      if (!pending.length) {
-        showToast('沒有需要處理的照片', 'info');
-        return;
-      }
-
-      isProcessing = true;
-      renderQueue();
-
-      for (const item of pending) {
-        await processOne(item);
-      }
-
-      isProcessing = false;
-      renderQueue();
-
-      const successCount = queue.filter(q => q.status === 'done').length;
-      showToast(`全部處理完成！成功 ${successCount} 張`, 'success');
-    }
-
-    // Helper: call Gemini with a prompt + image, return the result image
-    async function callGeminiImage(prompt, imageBase64, imageMimeType, model) {
-      const resp = await fetch(getGeminiUrl(model), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: imageMimeType, data: imageBase64 } }
-            ]
-          }],
-          generationConfig: { responseModalities: ['IMAGE'] }
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error?.message || 'Gemini API 錯誤');
-      const candidates = data.candidates;
-      if (!candidates || !candidates.length) throw new Error('Gemini 未回傳結果');
-      for (const part of candidates[0].content.parts) {
-        if (part.inlineData) return {
-          data: part.inlineData.data,
-          mimeType: part.inlineData.mimeType || 'image/png'
-        };
-      }
-      const text = candidates[0].content.parts.map(p => p.text || '').join('');
-      throw new Error(text || '未產生圖片');
-    }
-
-    async function processOne(item) {
-      item.status = 'processing';
-      item.errorMsg = '';
-      item.resultData = null;
-      renderQueue();
-
-      try {
-        const base64 = await fileToBase64(item.file);
-        const mimeType = item.file.type || 'image/jpeg';
-
-        if (currentMode === 'ai') {
-          // ===== AI REDRAW MODE =====
-          // Single Gemini call with Pro model: redraw head with beauty + no neck + transparent bg
-          const result = await callGeminiImage(AI_REDRAW_PROMPT, base64, mimeType, GEMINI_MODEL_PRO);
-          item.resultData = { data: result.data, mimeType: result.mimeType };
-
-        } else {
-          // ===== MASK MODE =====
-          // STEP 1: Gemini mask → cut head from original (100% original pixels)
-          const maskResult = await callGeminiImage(MASK_PROMPT, base64, mimeType);
-
-          // Apply mask to ORIGINAL image → original pixels, transparent bg
-          const cutoutBase64 = await applyMaskToOriginal(
-            base64, mimeType,
-            maskResult.data, maskResult.mimeType
-          );
-
-          // STEP 2: Skin-aware neck removal (only removes skin-colored pixels below chin)
-          const neckCleanedBase64 = await skinAwareNeckRemoval(cutoutBase64, base64, mimeType);
-
-          // STEP 3: Canvas beauty filters
-          const beautifiedBase64 = await applyCanvasBeauty(neckCleanedBase64);
-
-          item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
         }
 
-        item.status = 'done';
-      } catch (err) {
-        console.error('Processing error:', err);
-        item.status = 'error';
-        item.errorMsg = err.message || '未知錯誤';
-        showToast(`處理失敗：${item.errorMsg}`, 'error');
-      }
-
-      renderQueue();
-    }
-
-    async function retryOne(id) {
-      const item = queue.find(q => q.id === id);
-      if (!item) return;
-      isProcessing = true;
-      renderQueue();
-      await processOne(item);
-      isProcessing = false;
-      renderQueue();
-    }
-
-    // ============================================================
-    //  Utilities
-    // ============================================================
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-          const base64 = reader.result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // Apply a B/W mask to the original image
-    function applyMaskToOriginal(originalBase64, originalMimeType, maskBase64, maskMimeType) {
-      return new Promise((resolve) => {
-        const originalImg = new Image();
-        const maskImg = new Image();
-        let loadedCount = 0;
-
-        async function onBothLoaded() {
-          loadedCount++;
-          if (loadedCount < 2) return;
-
-          const w = originalImg.width, h = originalImg.height;
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-
-          ctx.drawImage(originalImg, 0, 0);
-          const originalData = ctx.getImageData(0, 0, w, h);
-
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(maskImg, 0, 0, w, h);
-          const maskData = ctx.getImageData(0, 0, w, h);
-
-          // Apply mask brightness as alpha (no algorithmic post-processing)
-          for (let i = 0; i < originalData.data.length; i += 4) {
-            const b = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
-            originalData.data[i + 3] = Math.round(b);
-          }
-
-          ctx.putImageData(originalData, 0, 0);
-          resolve(canvas.toDataURL('image/png').split(',')[1]);
+        function statusText(status) {
+            switch (status) {
+                case 'pending': return '等待中';
+                case 'processing': return 'AI 處理中';
+                case 'done': return '完成';
+                case 'error': return '失敗';
+                default: return status;
+            }
         }
 
-        originalImg.onload = onBothLoaded;
-        maskImg.onload = onBothLoaded;
-        originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
-        maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
-      });
-    }
+        // ============================================================
+        //  Processing
+        // ============================================================
+        async function processAll() {
+            if (isProcessing) return;
+            const pending = queue.filter(q => q.status === 'pending' || q.status === 'error');
+            if (!pending.length) {
+                showToast('沒有需要處理的照片', 'info');
+                return;
+            }
 
-    // Skin-aware neck removal: only remove skin-colored pixels below the chin
-    // Hair (dark, non-skin colors) is preserved even below chin level
-    function skinAwareNeckRemoval(cutoutBase64, originalBase64, originalMimeType) {
-      return new Promise((resolve) => {
-        if (!faceLandmarker) {
-          console.warn('No FaceLandmarker, skipping neck removal');
-          resolve(cutoutBase64);
-          return;
+            isProcessing = true;
+            renderQueue();
+
+            for (const item of pending) {
+                await processOne(item);
+            }
+
+            isProcessing = false;
+            renderQueue();
+
+            const successCount = queue.filter(q => q.status === 'done').length;
+            showToast(`全部處理完成！成功 ${successCount} 張`, 'success');
         }
 
-        const origImg = new Image();
-        origImg.onload = () => {
-          try {
-            // Detect face on original image
-            const tmpCanvas = document.createElement('canvas');
-            tmpCanvas.width = origImg.width; tmpCanvas.height = origImg.height;
-            tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
-            const results = faceLandmarker.detect(tmpCanvas);
+        // Helper: call Gemini with a prompt + image, return the result image
+        async function callGeminiImage(prompt, imageBase64, imageMimeType, model) {
+            const resp = await fetch(getGeminiUrl(model), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inlineData: { mimeType: imageMimeType, data: imageBase64 } }
+                        ]
+                    }],
+                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error?.message || 'Gemini API 錯誤');
+            const candidates = data.candidates;
+            if (!candidates || !candidates.length) throw new Error('Gemini 未回傳結果');
+            for (const part of candidates[0].content.parts) {
+                if (part.inlineData) return {
+                    data: part.inlineData.data,
+                    mimeType: part.inlineData.mimeType || 'image/png'
+                };
+            }
+            const text = candidates[0].content.parts.map(p => p.text || '').join('');
+            throw new Error(text || '未產生圖片');
+        }
 
-            if (!results.faceLandmarks || !results.faceLandmarks.length) {
-              console.warn('No face detected, skipping neck removal');
-              resolve(cutoutBase64);
-              return;
+        async function processOne(item) {
+            item.status = 'processing';
+            item.errorMsg = '';
+            item.resultData = null;
+            renderQueue();
+
+            try {
+                const base64 = await fileToBase64(item.file);
+                const mimeType = item.file.type || 'image/jpeg';
+
+                if (currentMode === 'ai') {
+                    // ===== AI REDRAW MODE =====
+                    // Single Gemini call with Pro model: redraw head with beauty + no neck + transparent bg
+                    const result = await callGeminiImage(AI_REDRAW_PROMPT, base64, mimeType, GEMINI_MODEL_PRO);
+                    item.resultData = { data: result.data, mimeType: result.mimeType };
+
+                } else {
+                    // ===== MASK MODE =====
+                    // STEP 1: Gemini mask → cut head from original (100% original pixels)
+                    const maskResult = await callGeminiImage(MASK_PROMPT, base64, mimeType);
+
+                    // Apply mask to ORIGINAL image → original pixels, transparent bg
+                    const cutoutBase64 = await applyMaskToOriginal(
+                        base64, mimeType,
+                        maskResult.data, maskResult.mimeType
+                    );
+
+                    // STEP 2: Skin-aware neck removal (only removes skin-colored pixels below chin)
+                    const neckCleanedBase64 = await skinAwareNeckRemoval(cutoutBase64, base64, mimeType);
+
+                    // STEP 3: Canvas beauty filters
+                    const beautifiedBase64 = await applyCanvasBeauty(neckCleanedBase64);
+
+                    item.resultData = { data: beautifiedBase64, mimeType: 'image/png' };
+                }
+
+                item.status = 'done';
+            } catch (err) {
+                console.error('Processing error:', err);
+                item.status = 'error';
+                item.errorMsg = err.message || '未知錯誤';
+                showToast(`處理失敗：${item.errorMsg}`, 'error');
             }
 
-            const lm = results.faceLandmarks[0];
-            const w = origImg.width, h = origImg.height;
+            renderQueue();
+        }
 
-            // Key reference points
-            const chinY = lm[152].y * h;
-            const faceCenterX = lm[1].x * w;
-            const leftJawX = lm[234].x * w;
-            const rightJawX = lm[454].x * w;
-            const jawWidth = rightJawX - leftJawX;
+        async function retryOne(id) {
+            const item = queue.find(q => q.id === id);
+            if (!item) return;
+            isProcessing = true;
+            renderQueue();
+            await processOne(item);
+            isProcessing = false;
+            renderQueue();
+        }
 
-            // Build jawline curve from face oval landmarks
-            // Face oval indices in order
-            const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+        // ============================================================
+        //  Utilities
+        // ============================================================
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
 
-            // Extract jawline points (below mouth level)
-            const mouthBottomY = lm[17].y * h;
-            const rawJawPts = ovalIdx
-              .map(i => ({ x: lm[i].x * w, y: lm[i].y * h }))
-              .filter(p => p.y > mouthBottomY);
-            rawJawPts.sort((a, b) => a.x - b.x);
+        // Apply a B/W mask to the original image
+        function applyMaskToOriginal(originalBase64, originalMimeType, maskBase64, maskMimeType) {
+            return new Promise((resolve) => {
+                const originalImg = new Image();
+                const maskImg = new Image();
+                let loadedCount = 0;
 
-            // Smooth the jawline using Catmull-Rom interpolation for rounder curve
-            const jawPoints = [];
-            for (let i = 0; i < rawJawPts.length - 1; i++) {
-              const p0 = rawJawPts[Math.max(0, i - 1)];
-              const p1 = rawJawPts[i];
-              const p2 = rawJawPts[i + 1];
-              const p3 = rawJawPts[Math.min(rawJawPts.length - 1, i + 2)];
-              // Generate 5 sub-points between p1 and p2
-              for (let t = 0; t < 1; t += 0.2) {
-                const t2 = t * t, t3 = t2 * t;
-                const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
-                const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-                jawPoints.push({ x, y });
-              }
-            }
-            jawPoints.push(rawJawPts[rawJawPts.length - 1]);
+                async function onBothLoaded() {
+                    loadedCount++;
+                    if (loadedCount < 2) return;
 
-            // Jawline Y lookup: smooth interpolated curve
-            const margin = 8;
-            function jawlineYAtX(x) {
-              if (jawPoints.length < 2) return chinY + margin;
-              if (x <= jawPoints[0].x) return jawPoints[0].y + margin;
-              if (x >= jawPoints[jawPoints.length - 1].x) return jawPoints[jawPoints.length - 1].y + margin;
-              for (let i = 0; i < jawPoints.length - 1; i++) {
-                if (x >= jawPoints[i].x && x <= jawPoints[i + 1].x) {
-                  const t = (x - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
-                  return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y) + margin;
-                }
-              }
-              return chinY + margin;
-            }
+                    const w = originalImg.width, h = originalImg.height;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
 
-            // Neck zone width: center 95% of jaw (wider to catch all neck)
-            const neckLeft = faceCenterX - jawWidth * 0.475;
-            const neckRight = faceCenterX + jawWidth * 0.475;
-            const deepClearDistance = 25; // px below jawline: remove ALL pixels regardless of color
+                    ctx.drawImage(originalImg, 0, 0);
+                    const originalData = ctx.getImageData(0, 0, w, h);
 
-            // Load and process cutout
-            const cutoutImg = new Image();
-            cutoutImg.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = w; canvas.height = h;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(cutoutImg, 0, 0);
-              const imageData = ctx.getImageData(0, 0, w, h);
-              const d = imageData.data;
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.drawImage(maskImg, 0, 0, w, h);
+                    const maskData = ctx.getImageData(0, 0, w, h);
 
-              const scanStartY = Math.floor(mouthBottomY);
-              for (let y = scanStartY; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                  const pi = (y * w + x) * 4;
-                  if (d[pi + 3] < 10) continue;
-
-                  // Side zones: preserve hair
-                  if (x < neckLeft || x > neckRight) continue;
-
-                  // Check jawline boundary
-                  const jawY = jawlineYAtX(x);
-                  if (y <= jawY) continue; // above jawline = keep
-
-                  const distBelowJaw = y - jawY;
-
-                  // GUARANTEED CLEAR: far below jawline = remove everything
-                  if (distBelowJaw > deepClearDistance) {
-                    d[pi + 3] = 0;
-                    continue;
-                  }
-
-                  // Near jawline: only remove skin-colored pixels
-                  const r = d[pi], g = d[pi + 1], b = d[pi + 2];
-                  if (isSkinColor(r, g, b)) {
-                    d[pi + 3] = 0;
-                  }
-                }
-              }
-
-              // Light 1px alpha blur for smooth jawline edge
-              const blurStart = Math.max(1, scanStartY - 2);
-              const blurEnd = Math.min(h - 1, Math.floor(chinY) + 60);
-              const blurred = new Uint8ClampedArray(d);
-              for (let y = blurStart; y < blurEnd; y++) {
-                for (let x = Math.max(1, Math.floor(neckLeft)); x < Math.min(w - 1, Math.ceil(neckRight)); x++) {
-                  const pi = (y * w + x) * 4;
-                  const origAlpha = d[pi + 3];
-                  const above = d[((y - 1) * w + x) * 4 + 3];
-                  const below = d[((y + 1) * w + x) * 4 + 3];
-                  if (Math.abs(origAlpha - above) > 30 || Math.abs(origAlpha - below) > 30) {
-                    const sum = d[((y - 1) * w + x - 1) * 4 + 3] + d[((y - 1) * w + x) * 4 + 3] + d[((y - 1) * w + x + 1) * 4 + 3]
-                      + d[(y * w + x - 1) * 4 + 3] + origAlpha + d[(y * w + x + 1) * 4 + 3]
-                      + d[((y + 1) * w + x - 1) * 4 + 3] + d[((y + 1) * w + x) * 4 + 3] + d[((y + 1) * w + x + 1) * 4 + 3];
-                    blurred[pi + 3] = Math.round(sum / 9);
-                  }
-                }
-              }
-              // Copy blurred alpha back
-              for (let i = 3; i < d.length; i += 4) d[i] = blurred[i];
-
-              ctx.putImageData(imageData, 0, 0);
-              resolve(canvas.toDataURL('image/png').split(',')[1]);
-            };
-            cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
-
-          } catch (err) {
-            console.warn('Neck removal error:', err);
-            resolve(cutoutBase64);
-          }
-        };
-        origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
-      });
-    }
-
-    // Check if RGB color is skin-like using HSL heuristics
-    function isSkinColor(r, g, b) {
-      const max = Math.max(r, g, b), min = Math.min(r, g, b);
-      const l = (max + min) / 2 / 255;
-      if (l < 0.15 || l > 0.88) return false; // too dark (hair) or too bright
-
-      const d = max - min;
-      if (d === 0) return false; // gray
-      const s = d / (l > 0.5 ? (510 - max - min) : (max + min));
-      if (s < 0.08) return false; // low saturation = not skin
-
-      // Hue calculation
-      let h;
-      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-      else if (max === g) h = (b - r) / d + 2;
-      else h = (r - g) / d + 4;
-      h *= 60;
-
-      // Skin hue range: roughly 0-50° (red to yellow-orange)
-      return (h >= 0 && h <= 55) || h >= 340; // include pinkish reds
-    }
-
-    // Refine hair edges: smooth jagged alpha + fill small holes
-    function refineHairEdges(base64Data) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const w = img.width, h = img.height;
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, w, h);
-          const d = imageData.data;
-
-          // Extract alpha channel
-          const alpha = new Float32Array(w * h);
-          for (let i = 0; i < w * h; i++) alpha[i] = d[i * 4 + 3];
-
-          // Step 1: DILATE alpha (fill small holes) — radius 2
-          const dilated = new Float32Array(alpha);
-          for (let pass = 0; pass < 2; pass++) {
-            const src = pass === 0 ? alpha : dilated;
-            for (let y = 1; y < h - 1; y++) {
-              for (let x = 1; x < w - 1; x++) {
-                const idx = y * w + x;
-                if (src[idx] < 128) {
-                  // Check 4-neighbors
-                  const maxN = Math.max(
-                    src[idx - 1], src[idx + 1],
-                    src[idx - w], src[idx + w]
-                  );
-                  if (maxN > 128) dilated[idx] = maxN;
-                }
-              }
-            }
-          }
-
-          // Step 2: ERODE back (remove expansion beyond original boundary) — radius 2
-          const eroded = new Float32Array(dilated);
-          for (let pass = 0; pass < 2; pass++) {
-            const src = pass === 0 ? dilated : eroded;
-            for (let y = 1; y < h - 1; y++) {
-              for (let x = 1; x < w - 1; x++) {
-                const idx = y * w + x;
-                if (src[idx] > 128) {
-                  const minN = Math.min(
-                    src[idx - 1], src[idx + 1],
-                    src[idx - w], src[idx + w]
-                  );
-                  if (minN < 10) eroded[idx] = alpha[idx]; // restore original if at edge
-                }
-              }
-            }
-          }
-
-          // Step 3: Smooth alpha (anti-alias edges) — 3x3 box blur on alpha
-          const smoothed = new Float32Array(eroded);
-          for (let y = 1; y < h - 1; y++) {
-            for (let x = 1; x < w - 1; x++) {
-              const idx = y * w + x;
-              // Only smooth near edges (where alpha transitions)
-              if (eroded[idx] > 5 && eroded[idx] < 250) {
-                let sum = 0;
-                for (let dy = -1; dy <= 1; dy++) {
-                  for (let dx = -1; dx <= 1; dx++) {
-                    sum += eroded[(y + dy) * w + (x + dx)];
-                  }
-                }
-                smoothed[idx] = sum / 9;
-              }
-            }
-          }
-
-          // Step 4: Apply smoothed alpha + fill RGB for newly opaque pixels
-          for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-              const idx = y * w + x;
-              const pi = idx * 4;
-              const newAlpha = Math.round(smoothed[idx]);
-
-              if (newAlpha > 5 && d[pi + 3] < 5) {
-                // Newly opaque pixel (was a hole) — sample color from nearest opaque neighbor
-                let found = false;
-                for (let r = 1; r <= 3 && !found; r++) {
-                  for (let dy = -r; dy <= r && !found; dy++) {
-                    for (let dx = -r; dx <= r && !found; dx++) {
-                      const ny = y + dy, nx = x + dx;
-                      if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-                        const ni = (ny * w + nx) * 4;
-                        if (d[ni + 3] > 128) {
-                          d[pi] = d[ni]; d[pi + 1] = d[ni + 1]; d[pi + 2] = d[ni + 2];
-                          found = true;
-                        }
-                      }
+                    // Apply mask brightness as alpha (no algorithmic post-processing)
+                    for (let i = 0; i < originalData.data.length; i += 4) {
+                        const b = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+                        originalData.data[i + 3] = Math.round(b);
                     }
-                  }
+
+                    ctx.putImageData(originalData, 0, 0);
+                    resolve(canvas.toDataURL('image/png').split(',')[1]);
                 }
-              }
 
-              d[pi + 3] = newAlpha > 5 ? newAlpha : 0;
-            }
-          }
-
-          ctx.putImageData(imageData, 0, 0);
-          resolve(canvas.toDataURL('image/png').split(',')[1]);
-        };
-        img.src = `data:image/png;base64,${base64Data}`;
-      });
-    }
-
-    // Clip the cutout along the jawline using MediaPipe face landmarks
-    // Creates a precise curved arc below which everything becomes transparent
-    function clipJawline(cutoutBase64, originalBase64, originalMimeType) {
-      return new Promise((resolve) => {
-        // If no MediaPipe, return as-is
-        if (!faceLandmarker) {
-          console.warn('No FaceLandmarker, skipping jawline clip');
-          resolve(cutoutBase64);
-          return;
+                originalImg.onload = onBothLoaded;
+                maskImg.onload = onBothLoaded;
+                originalImg.src = `data:${originalMimeType};base64,${originalBase64}`;
+                maskImg.src = `data:${maskMimeType};base64,${maskBase64}`;
+            });
         }
 
-        const origImg = new Image();
-        origImg.onload = () => {
-          try {
-            // Detect landmarks on original image (clearer than cutout)
-            const tmpCanvas = document.createElement('canvas');
-            tmpCanvas.width = origImg.width;
-            tmpCanvas.height = origImg.height;
-            tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
-
-            const results = faceLandmarker.detect(tmpCanvas);
-            if (!results.faceLandmarks || !results.faceLandmarks.length) {
-              console.warn('No face detected, skipping jawline clip');
-              resolve(cutoutBase64);
-              return;
-            }
-
-            const lm = results.faceLandmarks[0];
-            const w = origImg.width, h = origImg.height;
-
-            // Face oval indices (MediaPipe canonical order: forehead → right → chin → left → back to forehead)
-            const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
-
-            // Convert to pixel coordinates
-            const ovalPts = ovalIdx.map(i => ({
-              x: lm[i].x * w,
-              y: lm[i].y * h
-            }));
-
-            // Find the jawline portion — ONLY the very bottom edge of the face
-            // Use mouth bottom (landmark 17) as threshold — below this = true jaw edge
-            const mouthBottomY = lm[17].y * h;
-
-            // Only include points BELOW the mouth bottom — these are the true jaw edge points
-            const jawPoints = [];
-            for (let i = 0; i < ovalPts.length; i++) {
-              if (ovalPts[i].y > mouthBottomY) {
-                jawPoints.push({ ...ovalPts[i] });
-              }
-            }
-
-            if (jawPoints.length < 3) {
-              console.warn('Not enough jawline points, skipping clip');
-              resolve(cutoutBase64);
-              return;
-            }
-
-            // Sort jawline points left-to-right for smooth curve
-            jawPoints.sort((a, b) => a.x - b.x);
-
-            // Add generous margin to avoid cutting into chin/cheeks
-            const vMargin = 20; // vertical: generous chin buffer
-            jawPoints.forEach(p => p.y += vMargin);
-
-            // Calculate neck-only zone: narrow strip in the center
-            // The neck is approximately 40% of jaw width — only clip THIS zone
-            const leftJaw = jawPoints[0];
-            const rightJaw = jawPoints[jawPoints.length - 1];
-            const jawWidth = rightJaw.x - leftJaw.x;
-            const centerX = (leftJaw.x + rightJaw.x) / 2;
-            const neckHalfWidth = jawWidth * 0.4; // 40% of jaw width = neck zone
-            const neckLeft = centerX - neckHalfWidth;
-            const neckRight = centerX + neckHalfWidth;
-
-            // Filter jaw points to only those within the neck zone
-            const neckJawPts = jawPoints.filter(p => p.x >= neckLeft && p.x <= neckRight);
-            // Ensure we have boundary points at neckLeft and neckRight
-            // Find the jaw Y at neck boundaries via interpolation
-            const jawYAtX = (targetX) => {
-              // Find the two jawPoints bracketing targetX
-              for (let i = 0; i < jawPoints.length - 1; i++) {
-                if (jawPoints[i].x <= targetX && jawPoints[i + 1].x >= targetX) {
-                  const t = (targetX - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
-                  return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y);
+        // Skin-aware neck removal: only remove skin-colored pixels below the chin
+        // Hair (dark, non-skin colors) is preserved even below chin level
+        function skinAwareNeckRemoval(cutoutBase64, originalBase64, originalMimeType) {
+            return new Promise((resolve) => {
+                if (!faceLandmarker) {
+                    console.warn('No FaceLandmarker, skipping neck removal');
+                    resolve(cutoutBase64);
+                    return;
                 }
-              }
-              return jawPoints[0].y;
-            };
 
-            const neckLeftY = jawYAtX(neckLeft);
-            const neckRightY = jawYAtX(neckRight);
+                const origImg = new Image();
+                origImg.onload = () => {
+                    try {
+                        // Detect face on original image
+                        const tmpCanvas = document.createElement('canvas');
+                        tmpCanvas.width = origImg.width; tmpCanvas.height = origImg.height;
+                        tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
+                        const results = faceLandmarker.detect(tmpCanvas);
 
-            // Now draw the cutout image and clip it
-            const cutoutImg = new Image();
-            cutoutImg.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = w; canvas.height = h;
-              const ctx = canvas.getContext('2d');
+                        if (!results.faceLandmarks || !results.faceLandmarks.length) {
+                            console.warn('No face detected, skipping neck removal');
+                            resolve(cutoutBase64);
+                            return;
+                        }
 
-              // Draw the cutout
-              ctx.drawImage(cutoutImg, 0, 0);
+                        const lm = results.faceLandmarks[0];
+                        const w = origImg.width, h = origImg.height;
 
-              // Clipping: keep EVERYTHING except the narrow neck strip below jawline
-              ctx.globalCompositeOperation = 'destination-in';
-              ctx.beginPath();
+                        // Key reference points
+                        const chinY = lm[152].y * h;
+                        const faceCenterX = lm[1].x * w;
+                        const leftJawX = lm[234].x * w;
+                        const rightJawX = lm[454].x * w;
+                        const jawWidth = rightJawX - leftJawX;
 
-              // Full image rectangle, but carve out the neck zone below jawline
-              // Path: top-left → top-right → right-full-height → 
-              //   bottom to neckRight → UP to jaw at neckRight →
-              //   jawline curve from right to left →
-              //   DOWN from jaw at neckLeft to bottom →
-              //   left-full-height → back to top-left
+                        // Build jawline curve from face oval landmarks
+                        // Face oval indices in order
+                        const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
 
-              ctx.moveTo(0, 0);
-              ctx.lineTo(w, 0);           // top
-              ctx.lineTo(w, h);           // right side full height (keeps ALL side hair)
-              ctx.lineTo(neckRight, h);   // across bottom to neck right boundary
-              ctx.lineTo(neckRight, neckRightY); // UP to jaw curve at neck right
+                        // Extract jawline points (below mouth level)
+                        const mouthBottomY = lm[17].y * h;
+                        const rawJawPts = ovalIdx
+                            .map(i => ({ x: lm[i].x * w, y: lm[i].y * h }))
+                            .filter(p => p.y > mouthBottomY);
+                        rawJawPts.sort((a, b) => a.x - b.x);
 
-              // Follow jawline curve from right to left (only neck zone portion)
-              for (let i = neckJawPts.length - 1; i > 0; i--) {
-                const cur = neckJawPts[i];
-                const prev = neckJawPts[i - 1];
-                const cpX = (cur.x + prev.x) / 2;
-                const cpY = (cur.y + prev.y) / 2;
-                ctx.quadraticCurveTo(cur.x, cur.y, cpX, cpY);
-              }
+                        // Smooth the jawline using Catmull-Rom interpolation for rounder curve
+                        const jawPoints = [];
+                        for (let i = 0; i < rawJawPts.length - 1; i++) {
+                            const p0 = rawJawPts[Math.max(0, i - 1)];
+                            const p1 = rawJawPts[i];
+                            const p2 = rawJawPts[i + 1];
+                            const p3 = rawJawPts[Math.min(rawJawPts.length - 1, i + 2)];
+                            // Generate 5 sub-points between p1 and p2
+                            for (let t = 0; t < 1; t += 0.2) {
+                                const t2 = t * t, t3 = t2 * t;
+                                const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+                                const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+                                jawPoints.push({ x, y });
+                            }
+                        }
+                        jawPoints.push(rawJawPts[rawJawPts.length - 1]);
 
-              ctx.lineTo(neckLeft, neckLeftY);  // end at neck left boundary on jaw
-              ctx.lineTo(neckLeft, h);    // DOWN to bottom
-              ctx.lineTo(0, h);           // across bottom left
-              ctx.lineTo(0, 0);           // left side full height (keeps ALL side hair)
+                        // Jawline Y lookup: smooth interpolated curve
+                        const margin = 8;
+                        function jawlineYAtX(x) {
+                            if (jawPoints.length < 2) return chinY + margin;
+                            if (x <= jawPoints[0].x) return jawPoints[0].y + margin;
+                            if (x >= jawPoints[jawPoints.length - 1].x) return jawPoints[jawPoints.length - 1].y + margin;
+                            for (let i = 0; i < jawPoints.length - 1; i++) {
+                                if (x >= jawPoints[i].x && x <= jawPoints[i + 1].x) {
+                                    const t = (x - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
+                                    return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y) + margin;
+                                }
+                            }
+                            return chinY + margin;
+                        }
 
-              ctx.closePath();
-              ctx.fill();
+                        // Neck zone width: center 95% of jaw (wider to catch all neck)
+                        const neckLeft = faceCenterX - jawWidth * 0.475;
+                        const neckRight = faceCenterX + jawWidth * 0.475;
+                        const deepClearDistance = 25; // px below jawline: remove ALL pixels regardless of color
 
-              ctx.globalCompositeOperation = 'source-over';
+                        // Load and process cutout
+                        const cutoutImg = new Image();
+                        cutoutImg.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(cutoutImg, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, w, h);
+                            const d = imageData.data;
 
-              resolve(canvas.toDataURL('image/png').split(',')[1]);
-            };
-            cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+                            const scanStartY = Math.floor(mouthBottomY);
+                            for (let y = scanStartY; y < h; y++) {
+                                for (let x = 0; x < w; x++) {
+                                    const pi = (y * w + x) * 4;
+                                    if (d[pi + 3] < 10) continue;
 
-          } catch (err) {
-            console.warn('Jawline clip error:', err);
-            resolve(cutoutBase64);
-          }
-        };
-        origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
-      });
-    }
+                                    // Side zones: preserve hair
+                                    if (x < neckLeft || x > neckRight) continue;
 
-    // Apply a neck removal mask to an already-cutout image
-    // neckMask: white = keep, black = remove
-    function applyNeckMask(cutoutBase64, neckMaskBase64, neckMaskMimeType) {
-      return new Promise((resolve) => {
-        const cutoutImg = new Image();
-        const maskImg = new Image();
-        let loaded = 0;
+                                    // Check jawline boundary
+                                    const jawY = jawlineYAtX(x);
+                                    if (y <= jawY) continue; // above jawline = keep
 
-        function onBothLoaded() {
-          loaded++;
-          if (loaded < 2) return;
+                                    const distBelowJaw = y - jawY;
 
-          const w = cutoutImg.width, h = cutoutImg.height;
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
+                                    // GUARANTEED CLEAR: far below jawline = remove everything
+                                    if (distBelowJaw > deepClearDistance) {
+                                        d[pi + 3] = 0;
+                                        continue;
+                                    }
 
-          // Draw cutout
-          ctx.drawImage(cutoutImg, 0, 0);
-          const cutoutData = ctx.getImageData(0, 0, w, h);
+                                    // Near jawline: only remove skin-colored pixels
+                                    const r = d[pi], g = d[pi + 1], b = d[pi + 2];
+                                    if (isSkinColor(r, g, b)) {
+                                        d[pi + 3] = 0;
+                                    }
+                                }
+                            }
 
-          // Draw neck mask
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(maskImg, 0, 0, w, h);
-          const maskData = ctx.getImageData(0, 0, w, h);
+                            // Light 1px alpha blur for smooth jawline edge
+                            const blurStart = Math.max(1, scanStartY - 2);
+                            const blurEnd = Math.min(h - 1, Math.floor(chinY) + 60);
+                            const blurred = new Uint8ClampedArray(d);
+                            for (let y = blurStart; y < blurEnd; y++) {
+                                for (let x = Math.max(1, Math.floor(neckLeft)); x < Math.min(w - 1, Math.ceil(neckRight)); x++) {
+                                    const pi = (y * w + x) * 4;
+                                    const origAlpha = d[pi + 3];
+                                    const above = d[((y - 1) * w + x) * 4 + 3];
+                                    const below = d[((y + 1) * w + x) * 4 + 3];
+                                    if (Math.abs(origAlpha - above) > 30 || Math.abs(origAlpha - below) > 30) {
+                                        const sum = d[((y - 1) * w + x - 1) * 4 + 3] + d[((y - 1) * w + x) * 4 + 3] + d[((y - 1) * w + x + 1) * 4 + 3]
+                                            + d[(y * w + x - 1) * 4 + 3] + origAlpha + d[(y * w + x + 1) * 4 + 3]
+                                            + d[((y + 1) * w + x - 1) * 4 + 3] + d[((y + 1) * w + x) * 4 + 3] + d[((y + 1) * w + x + 1) * 4 + 3];
+                                        blurred[pi + 3] = Math.round(sum / 9);
+                                    }
+                                }
+                            }
+                            // Copy blurred alpha back
+                            for (let i = 3; i < d.length; i += 4) d[i] = blurred[i];
 
-          // Where mask is dark → make cutout transparent
-          for (let i = 0; i < cutoutData.data.length; i += 4) {
-            const maskBright = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
-            // Multiply existing alpha with mask brightness
-            const existingAlpha = cutoutData.data[i + 3];
-            cutoutData.data[i + 3] = Math.round(existingAlpha * (maskBright / 255));
-          }
+                            ctx.putImageData(imageData, 0, 0);
+                            resolve(canvas.toDataURL('image/png').split(',')[1]);
+                        };
+                        cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
 
-          ctx.putImageData(cutoutData, 0, 0);
-          resolve(canvas.toDataURL('image/png').split(',')[1]);
+                    } catch (err) {
+                        console.warn('Neck removal error:', err);
+                        resolve(cutoutBase64);
+                    }
+                };
+                origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
+            });
         }
 
-        cutoutImg.onload = onBothLoaded;
-        maskImg.onload = onBothLoaded;
-        cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
-        maskImg.src = `data:${neckMaskMimeType};base64,${neckMaskBase64}`;
-      });
-    }
+        // Check if RGB color is skin-like using HSL heuristics
+        function isSkinColor(r, g, b) {
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const l = (max + min) / 2 / 255;
+            if (l < 0.15 || l > 0.88) return false; // too dark (hair) or too bright
 
-    // Canvas-based beauty filters — preserves head shape 100%
-    // Only adjusts brightness, contrast, saturation, and adds subtle effects
-    function applyCanvasBeauty(base64Data) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const w = img.width, h = img.height;
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
+            const d = max - min;
+            if (d === 0) return false; // gray
+            const s = d / (l > 0.5 ? (510 - max - min) : (max + min));
+            if (s < 0.08) return false; // low saturation = not skin
 
-          // Step 1: Draw original with brightness/contrast/saturation filters
-          ctx.filter = 'brightness(1.12) contrast(1.05) saturate(1.10)';
-          ctx.drawImage(img, 0, 0);
-          ctx.filter = 'none';
+            // Hue calculation
+            let h;
+            if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h *= 60;
 
-          // Step 2: Soft skin smoothing — light blur blended at low opacity
-          const smoothCanvas = document.createElement('canvas');
-          smoothCanvas.width = w; smoothCanvas.height = h;
-          const smoothCtx = smoothCanvas.getContext('2d');
-          smoothCtx.filter = 'blur(3px)';
-          smoothCtx.drawImage(img, 0, 0);
-          smoothCtx.filter = 'none';
+            // Skin hue range: roughly 0-50° (red to yellow-orange)
+            return (h >= 0 && h <= 55) || h >= 340; // include pinkish reds
+        }
 
-          // Blend blurred layer at 15% opacity (subtle skin smoothing)
-          ctx.globalAlpha = 0.15;
-          ctx.drawImage(smoothCanvas, 0, 0);
-          ctx.globalAlpha = 1.0;
+        // Refine hair edges: smooth jagged alpha + fill small holes
+        function refineHairEdges(base64Data) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const w = img.width, h = img.height;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, w, h);
+                    const d = imageData.data;
 
-          // Step 3: Subtle pink blush on cheeks area (center-lower region)
-          const gradient = ctx.createRadialGradient(
-            w * 0.35, h * 0.55, w * 0.02,
-            w * 0.35, h * 0.55, w * 0.12
-          );
-          gradient.addColorStop(0, 'rgba(255, 182, 193, 0.08)');
-          gradient.addColorStop(1, 'rgba(255, 182, 193, 0)');
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, 0, w, h);
+                    // Extract alpha channel
+                    const alpha = new Float32Array(w * h);
+                    for (let i = 0; i < w * h; i++) alpha[i] = d[i * 4 + 3];
 
-          // Mirror blush on other cheek
-          const gradient2 = ctx.createRadialGradient(
-            w * 0.65, h * 0.55, w * 0.02,
-            w * 0.65, h * 0.55, w * 0.12
-          );
-          gradient2.addColorStop(0, 'rgba(255, 182, 193, 0.08)');
-          gradient2.addColorStop(1, 'rgba(255, 182, 193, 0)');
-          ctx.fillStyle = gradient2;
-          ctx.fillRect(0, 0, w, h);
+                    // Step 1: DILATE alpha (fill small holes) — radius 2
+                    const dilated = new Float32Array(alpha);
+                    for (let pass = 0; pass < 2; pass++) {
+                        const src = pass === 0 ? alpha : dilated;
+                        for (let y = 1; y < h - 1; y++) {
+                            for (let x = 1; x < w - 1; x++) {
+                                const idx = y * w + x;
+                                if (src[idx] < 128) {
+                                    // Check 4-neighbors
+                                    const maxN = Math.max(
+                                        src[idx - 1], src[idx + 1],
+                                        src[idx - w], src[idx + w]
+                                    );
+                                    if (maxN > 128) dilated[idx] = maxN;
+                                }
+                            }
+                        }
+                    }
 
-          // Step 4: Preserve transparency — re-apply alpha from original
-          const finalData = ctx.getImageData(0, 0, w, h);
-          const origCanvas = document.createElement('canvas');
-          origCanvas.width = w; origCanvas.height = h;
-          const origCtx = origCanvas.getContext('2d');
-          origCtx.drawImage(img, 0, 0);
-          const origData = origCtx.getImageData(0, 0, w, h);
+                    // Step 2: ERODE back (remove expansion beyond original boundary) — radius 2
+                    const eroded = new Float32Array(dilated);
+                    for (let pass = 0; pass < 2; pass++) {
+                        const src = pass === 0 ? dilated : eroded;
+                        for (let y = 1; y < h - 1; y++) {
+                            for (let x = 1; x < w - 1; x++) {
+                                const idx = y * w + x;
+                                if (src[idx] > 128) {
+                                    const minN = Math.min(
+                                        src[idx - 1], src[idx + 1],
+                                        src[idx - w], src[idx + w]
+                                    );
+                                    if (minN < 10) eroded[idx] = alpha[idx]; // restore original if at edge
+                                }
+                            }
+                        }
+                    }
 
-          // Copy alpha channel from original (preserve transparency)
-          for (let i = 3; i < finalData.data.length; i += 4) {
-            finalData.data[i] = origData.data[i];
-          }
-          ctx.putImageData(finalData, 0, 0);
+                    // Step 3: Smooth alpha (anti-alias edges) — 3x3 box blur on alpha
+                    const smoothed = new Float32Array(eroded);
+                    for (let y = 1; y < h - 1; y++) {
+                        for (let x = 1; x < w - 1; x++) {
+                            const idx = y * w + x;
+                            // Only smooth near edges (where alpha transitions)
+                            if (eroded[idx] > 5 && eroded[idx] < 250) {
+                                let sum = 0;
+                                for (let dy = -1; dy <= 1; dy++) {
+                                    for (let dx = -1; dx <= 1; dx++) {
+                                        sum += eroded[(y + dy) * w + (x + dx)];
+                                    }
+                                }
+                                smoothed[idx] = sum / 9;
+                            }
+                        }
+                    }
 
-          resolve(canvas.toDataURL('image/png').split(',')[1]);
-        };
-        img.src = `data:image/png;base64,${base64Data}`;
-      });
-    }
+                    // Step 4: Apply smoothed alpha + fill RGB for newly opaque pixels
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const idx = y * w + x;
+                            const pi = idx * 4;
+                            const newAlpha = Math.round(smoothed[idx]);
 
-    // Remove neck from mask using MediaPipe chin detection
-    // Strategy: Only cut the CENTER NECK ZONE below chin + margin
-    // This avoids cutting into the face or side hair
-    async function removeNeckFromMask(maskData, width, height, originalImg) {
-      const data = maskData.data;
-      let chinY = null;
-      let faceCenterX = null;
-      let jawHalfWidth = null;
+                            if (newAlpha > 5 && d[pi + 3] < 5) {
+                                // Newly opaque pixel (was a hole) — sample color from nearest opaque neighbor
+                                let found = false;
+                                for (let r = 1; r <= 3 && !found; r++) {
+                                    for (let dy = -r; dy <= r && !found; dy++) {
+                                        for (let dx = -r; dx <= r && !found; dx++) {
+                                            const ny = y + dy, nx = x + dx;
+                                            if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+                                                const ni = (ny * w + nx) * 4;
+                                                if (d[ni + 3] > 128) {
+                                                    d[pi] = d[ni]; d[pi + 1] = d[ni + 1]; d[pi + 2] = d[ni + 2];
+                                                    found = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
-      // Try MediaPipe face landmark detection for precise chin position
-      if (faceLandmarker) {
-        try {
-          const tmpCanvas = document.createElement('canvas');
-          tmpCanvas.width = originalImg.width;
-          tmpCanvas.height = originalImg.height;
-          tmpCanvas.getContext('2d').drawImage(originalImg, 0, 0);
+                            d[pi + 3] = newAlpha > 5 ? newAlpha : 0;
+                        }
+                    }
 
-          const results = faceLandmarker.detect(tmpCanvas);
-          if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-            const lm = results.faceLandmarks[0];
-            // Landmark 152 = chin bottom center
-            chinY = Math.round(lm[152].y * height);
-            // Landmarks 234 = right jaw, 454 = left jaw (ear-level jaw corners)
-            const rJaw = Math.round(lm[234].x * width);
-            const lJaw = Math.round(lm[454].x * width);
-            faceCenterX = Math.round((rJaw + lJaw) / 2);
-            jawHalfWidth = Math.round(Math.abs(lJaw - rJaw) / 2);
-            console.log('MediaPipe chin at Y:' + chinY + ' center:' + faceCenterX + ' jawW:' + jawHalfWidth * 2);
-          }
-        } catch (e) { console.warn('MediaPipe failed:', e); }
-      }
+                    ctx.putImageData(imageData, 0, 0);
+                    resolve(canvas.toDataURL('image/png').split(',')[1]);
+                };
+                img.src = `data:image/png;base64,${base64Data}`;
+            });
+        }
 
-      // Fallback: row-width analysis
-      if (chinY === null) {
-        const rowW = new Array(height).fill(0);
-        let minY = height, maxY = 0, sumX = 0, cnt = 0;
-        for (let y = 0; y < height; y++)
-          for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            if ((data[idx] + data[idx + 1] + data[idx + 2]) / 3 > 128) {
-              rowW[y]++; sumX += x; cnt++;
-              if (y < minY) minY = y; if (y > maxY) maxY = y;
+        // Clip the cutout along the jawline using MediaPipe face landmarks
+        // Creates a precise curved arc below which everything becomes transparent
+        function clipJawline(cutoutBase64, originalBase64, originalMimeType) {
+            return new Promise((resolve) => {
+                // If no MediaPipe, return as-is
+                if (!faceLandmarker) {
+                    console.warn('No FaceLandmarker, skipping jawline clip');
+                    resolve(cutoutBase64);
+                    return;
+                }
+
+                const origImg = new Image();
+                origImg.onload = () => {
+                    try {
+                        // Detect landmarks on original image (clearer than cutout)
+                        const tmpCanvas = document.createElement('canvas');
+                        tmpCanvas.width = origImg.width;
+                        tmpCanvas.height = origImg.height;
+                        tmpCanvas.getContext('2d').drawImage(origImg, 0, 0);
+
+                        const results = faceLandmarker.detect(tmpCanvas);
+                        if (!results.faceLandmarks || !results.faceLandmarks.length) {
+                            console.warn('No face detected, skipping jawline clip');
+                            resolve(cutoutBase64);
+                            return;
+                        }
+
+                        const lm = results.faceLandmarks[0];
+                        const w = origImg.width, h = origImg.height;
+
+                        // Face oval indices (MediaPipe canonical order: forehead → right → chin → left → back to forehead)
+                        const ovalIdx = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+
+                        // Convert to pixel coordinates
+                        const ovalPts = ovalIdx.map(i => ({
+                            x: lm[i].x * w,
+                            y: lm[i].y * h
+                        }));
+
+                        // Find the jawline portion — ONLY the very bottom edge of the face
+                        // Use mouth bottom (landmark 17) as threshold — below this = true jaw edge
+                        const mouthBottomY = lm[17].y * h;
+
+                        // Only include points BELOW the mouth bottom — these are the true jaw edge points
+                        const jawPoints = [];
+                        for (let i = 0; i < ovalPts.length; i++) {
+                            if (ovalPts[i].y > mouthBottomY) {
+                                jawPoints.push({ ...ovalPts[i] });
+                            }
+                        }
+
+                        if (jawPoints.length < 3) {
+                            console.warn('Not enough jawline points, skipping clip');
+                            resolve(cutoutBase64);
+                            return;
+                        }
+
+                        // Sort jawline points left-to-right for smooth curve
+                        jawPoints.sort((a, b) => a.x - b.x);
+
+                        // Add generous margin to avoid cutting into chin/cheeks
+                        const vMargin = 20; // vertical: generous chin buffer
+                        jawPoints.forEach(p => p.y += vMargin);
+
+                        // Calculate neck-only zone: narrow strip in the center
+                        // The neck is approximately 40% of jaw width — only clip THIS zone
+                        const leftJaw = jawPoints[0];
+                        const rightJaw = jawPoints[jawPoints.length - 1];
+                        const jawWidth = rightJaw.x - leftJaw.x;
+                        const centerX = (leftJaw.x + rightJaw.x) / 2;
+                        const neckHalfWidth = jawWidth * 0.4; // 40% of jaw width = neck zone
+                        const neckLeft = centerX - neckHalfWidth;
+                        const neckRight = centerX + neckHalfWidth;
+
+                        // Filter jaw points to only those within the neck zone
+                        const neckJawPts = jawPoints.filter(p => p.x >= neckLeft && p.x <= neckRight);
+                        // Ensure we have boundary points at neckLeft and neckRight
+                        // Find the jaw Y at neck boundaries via interpolation
+                        const jawYAtX = (targetX) => {
+                            // Find the two jawPoints bracketing targetX
+                            for (let i = 0; i < jawPoints.length - 1; i++) {
+                                if (jawPoints[i].x <= targetX && jawPoints[i + 1].x >= targetX) {
+                                    const t = (targetX - jawPoints[i].x) / (jawPoints[i + 1].x - jawPoints[i].x);
+                                    return jawPoints[i].y + t * (jawPoints[i + 1].y - jawPoints[i].y);
+                                }
+                            }
+                            return jawPoints[0].y;
+                        };
+
+                        const neckLeftY = jawYAtX(neckLeft);
+                        const neckRightY = jawYAtX(neckRight);
+
+                        // Now draw the cutout image and clip it
+                        const cutoutImg = new Image();
+                        cutoutImg.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+
+                            // Draw the cutout
+                            ctx.drawImage(cutoutImg, 0, 0);
+
+                            // Clipping: keep EVERYTHING except the narrow neck strip below jawline
+                            ctx.globalCompositeOperation = 'destination-in';
+                            ctx.beginPath();
+
+                            // Full image rectangle, but carve out the neck zone below jawline
+                            // Path: top-left → top-right → right-full-height → 
+                            //   bottom to neckRight → UP to jaw at neckRight →
+                            //   jawline curve from right to left →
+                            //   DOWN from jaw at neckLeft to bottom →
+                            //   left-full-height → back to top-left
+
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(w, 0);           // top
+                            ctx.lineTo(w, h);           // right side full height (keeps ALL side hair)
+                            ctx.lineTo(neckRight, h);   // across bottom to neck right boundary
+                            ctx.lineTo(neckRight, neckRightY); // UP to jaw curve at neck right
+
+                            // Follow jawline curve from right to left (only neck zone portion)
+                            for (let i = neckJawPts.length - 1; i > 0; i--) {
+                                const cur = neckJawPts[i];
+                                const prev = neckJawPts[i - 1];
+                                const cpX = (cur.x + prev.x) / 2;
+                                const cpY = (cur.y + prev.y) / 2;
+                                ctx.quadraticCurveTo(cur.x, cur.y, cpX, cpY);
+                            }
+
+                            ctx.lineTo(neckLeft, neckLeftY);  // end at neck left boundary on jaw
+                            ctx.lineTo(neckLeft, h);    // DOWN to bottom
+                            ctx.lineTo(0, h);           // across bottom left
+                            ctx.lineTo(0, 0);           // left side full height (keeps ALL side hair)
+
+                            ctx.closePath();
+                            ctx.fill();
+
+                            ctx.globalCompositeOperation = 'source-over';
+
+                            resolve(canvas.toDataURL('image/png').split(',')[1]);
+                        };
+                        cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+
+                    } catch (err) {
+                        console.warn('Jawline clip error:', err);
+                        resolve(cutoutBase64);
+                    }
+                };
+                origImg.src = `data:${originalMimeType};base64,${originalBase64}`;
+            });
+        }
+
+        // Apply a neck removal mask to an already-cutout image
+        // neckMask: white = keep, black = remove
+        function applyNeckMask(cutoutBase64, neckMaskBase64, neckMaskMimeType) {
+            return new Promise((resolve) => {
+                const cutoutImg = new Image();
+                const maskImg = new Image();
+                let loaded = 0;
+
+                function onBothLoaded() {
+                    loaded++;
+                    if (loaded < 2) return;
+
+                    const w = cutoutImg.width, h = cutoutImg.height;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw cutout
+                    ctx.drawImage(cutoutImg, 0, 0);
+                    const cutoutData = ctx.getImageData(0, 0, w, h);
+
+                    // Draw neck mask
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.drawImage(maskImg, 0, 0, w, h);
+                    const maskData = ctx.getImageData(0, 0, w, h);
+
+                    // Where mask is dark → make cutout transparent
+                    for (let i = 0; i < cutoutData.data.length; i += 4) {
+                        const maskBright = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+                        // Multiply existing alpha with mask brightness
+                        const existingAlpha = cutoutData.data[i + 3];
+                        cutoutData.data[i + 3] = Math.round(existingAlpha * (maskBright / 255));
+                    }
+
+                    ctx.putImageData(cutoutData, 0, 0);
+                    resolve(canvas.toDataURL('image/png').split(',')[1]);
+                }
+
+                cutoutImg.onload = onBothLoaded;
+                maskImg.onload = onBothLoaded;
+                cutoutImg.src = `data:image/png;base64,${cutoutBase64}`;
+                maskImg.src = `data:${neckMaskMimeType};base64,${neckMaskBase64}`;
+            });
+        }
+
+        // Canvas-based beauty filters — preserves head shape 100%
+        // Only adjusts brightness, contrast, saturation, and adds subtle effects
+        function applyCanvasBeauty(base64Data) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const w = img.width, h = img.height;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+
+                    // Step 1: Draw original with brightness/contrast/saturation filters
+                    ctx.filter = 'brightness(1.12) contrast(1.05) saturate(1.10)';
+                    ctx.drawImage(img, 0, 0);
+                    ctx.filter = 'none';
+
+                    // Step 2: Soft skin smoothing — light blur blended at low opacity
+                    const smoothCanvas = document.createElement('canvas');
+                    smoothCanvas.width = w; smoothCanvas.height = h;
+                    const smoothCtx = smoothCanvas.getContext('2d');
+                    smoothCtx.filter = 'blur(3px)';
+                    smoothCtx.drawImage(img, 0, 0);
+                    smoothCtx.filter = 'none';
+
+                    // Blend blurred layer at 15% opacity (subtle skin smoothing)
+                    ctx.globalAlpha = 0.15;
+                    ctx.drawImage(smoothCanvas, 0, 0);
+                    ctx.globalAlpha = 1.0;
+
+                    // Step 3: Subtle pink blush on cheeks area (center-lower region)
+                    const gradient = ctx.createRadialGradient(
+                        w * 0.35, h * 0.55, w * 0.02,
+                        w * 0.35, h * 0.55, w * 0.12
+                    );
+                    gradient.addColorStop(0, 'rgba(255, 182, 193, 0.08)');
+                    gradient.addColorStop(1, 'rgba(255, 182, 193, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, w, h);
+
+                    // Mirror blush on other cheek
+                    const gradient2 = ctx.createRadialGradient(
+                        w * 0.65, h * 0.55, w * 0.02,
+                        w * 0.65, h * 0.55, w * 0.12
+                    );
+                    gradient2.addColorStop(0, 'rgba(255, 182, 193, 0.08)');
+                    gradient2.addColorStop(1, 'rgba(255, 182, 193, 0)');
+                    ctx.fillStyle = gradient2;
+                    ctx.fillRect(0, 0, w, h);
+
+                    // Step 4: Preserve transparency — re-apply alpha from original
+                    const finalData = ctx.getImageData(0, 0, w, h);
+                    const origCanvas = document.createElement('canvas');
+                    origCanvas.width = w; origCanvas.height = h;
+                    const origCtx = origCanvas.getContext('2d');
+                    origCtx.drawImage(img, 0, 0);
+                    const origData = origCtx.getImageData(0, 0, w, h);
+
+                    // Copy alpha channel from original (preserve transparency)
+                    for (let i = 3; i < finalData.data.length; i += 4) {
+                        finalData.data[i] = origData.data[i];
+                    }
+                    ctx.putImageData(finalData, 0, 0);
+
+                    resolve(canvas.toDataURL('image/png').split(',')[1]);
+                };
+                img.src = `data:image/png;base64,${base64Data}`;
+            });
+        }
+
+        // Remove neck from mask using MediaPipe chin detection
+        // Strategy: Only cut the CENTER NECK ZONE below chin + margin
+        // This avoids cutting into the face or side hair
+        async function removeNeckFromMask(maskData, width, height, originalImg) {
+            const data = maskData.data;
+            let chinY = null;
+            let faceCenterX = null;
+            let jawHalfWidth = null;
+
+            // Try MediaPipe face landmark detection for precise chin position
+            if (faceLandmarker) {
+                try {
+                    const tmpCanvas = document.createElement('canvas');
+                    tmpCanvas.width = originalImg.width;
+                    tmpCanvas.height = originalImg.height;
+                    tmpCanvas.getContext('2d').drawImage(originalImg, 0, 0);
+
+                    const results = faceLandmarker.detect(tmpCanvas);
+                    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                        const lm = results.faceLandmarks[0];
+                        // Landmark 152 = chin bottom center
+                        chinY = Math.round(lm[152].y * height);
+                        // Landmarks 234 = right jaw, 454 = left jaw (ear-level jaw corners)
+                        const rJaw = Math.round(lm[234].x * width);
+                        const lJaw = Math.round(lm[454].x * width);
+                        faceCenterX = Math.round((rJaw + lJaw) / 2);
+                        jawHalfWidth = Math.round(Math.abs(lJaw - rJaw) / 2);
+                        console.log('MediaPipe chin at Y:' + chinY + ' center:' + faceCenterX + ' jawW:' + jawHalfWidth * 2);
+                    }
+                } catch (e) { console.warn('MediaPipe failed:', e); }
             }
-          }
-        if (maxY <= minY || cnt === 0) return;
-        faceCenterX = Math.round(sumX / cnt);
-        jawHalfWidth = Math.round(Math.max(...rowW.filter(w => w > 0)) / 2);
-        const s = Math.floor(minY + (maxY - minY) * 0.55);
-        let mw = Infinity; chinY = maxY;
-        for (let y = s; y <= maxY; y++)
-          if (rowW[y] > 0 && rowW[y] < mw) { mw = rowW[y]; chinY = y; }
-      }
 
-      // ===== SAFE NECK REMOVAL =====
-      // Only cut center neck zone below chinY + safety margin
-      // Preserves: entire face, jaw sides, hair on sides
-      const margin = 5;
-      const cutStart = chinY + margin;
-      const fade = 10;
+            // Fallback: row-width analysis
+            if (chinY === null) {
+                const rowW = new Array(height).fill(0);
+                let minY = height, maxY = 0, sumX = 0, cnt = 0;
+                for (let y = 0; y < height; y++)
+                    for (let x = 0; x < width; x++) {
+                        const idx = (y * width + x) * 4;
+                        if ((data[idx] + data[idx + 1] + data[idx + 2]) / 3 > 128) {
+                            rowW[y]++; sumX += x; cnt++;
+                            if (y < minY) minY = y; if (y > maxY) maxY = y;
+                        }
+                    }
+                if (maxY <= minY || cnt === 0) return;
+                faceCenterX = Math.round(sumX / cnt);
+                jawHalfWidth = Math.round(Math.max(...rowW.filter(w => w > 0)) / 2);
+                const s = Math.floor(minY + (maxY - minY) * 0.55);
+                let mw = Infinity; chinY = maxY;
+                for (let y = s; y <= maxY; y++)
+                    if (rowW[y] > 0 && rowW[y] < mw) { mw = rowW[y]; chinY = y; }
+            }
 
-      // Neck zone = center 50% of jaw width
-      const neckHalf = Math.round(jawHalfWidth * 0.5);
-      const neckLeft = faceCenterX - neckHalf;
-      const neckRight = faceCenterX + neckHalf;
+            // ===== SAFE NECK REMOVAL =====
+            // Only cut center neck zone below chinY + safety margin
+            // Preserves: entire face, jaw sides, hair on sides
+            const margin = 5;
+            const cutStart = chinY + margin;
+            const fade = 10;
 
-      for (let y = cutStart; y < height; y++) {
-        const dist = y - cutStart;
-        for (let x = Math.max(0, neckLeft); x <= Math.min(neckRight, width - 1); x++) {
-          const idx = (y * width + x) * 4;
-          if (data[idx] > 5 || data[idx + 1] > 5 || data[idx + 2] > 5) {
-            // Smooth horizontal edge transition (don't hard-cut at neckLeft/neckRight)
-            const edgeDist = Math.min(x - neckLeft, neckRight - x);
-            const edgeFade = Math.min(edgeDist / 10, 1.0);
+            // Neck zone = center 50% of jaw width
+            const neckHalf = Math.round(jawHalfWidth * 0.5);
+            const neckLeft = faceCenterX - neckHalf;
+            const neckRight = faceCenterX + neckHalf;
 
-            // Vertical fade
-            const vertFade = dist < fade ? dist / fade : 1.0;
+            for (let y = cutStart; y < height; y++) {
+                const dist = y - cutStart;
+                for (let x = Math.max(0, neckLeft); x <= Math.min(neckRight, width - 1); x++) {
+                    const idx = (y * width + x) * 4;
+                    if (data[idx] > 5 || data[idx + 1] > 5 || data[idx + 2] > 5) {
+                        // Smooth horizontal edge transition (don't hard-cut at neckLeft/neckRight)
+                        const edgeDist = Math.min(x - neckLeft, neckRight - x);
+                        const edgeFade = Math.min(edgeDist / 10, 1.0);
 
-            // Combined: ramp up removal gradually
-            const removal = edgeFade * vertFade;
-            const keep = 1.0 - removal;
+                        // Vertical fade
+                        const vertFade = dist < fade ? dist / fade : 1.0;
 
-            data[idx] = Math.round(data[idx] * keep);
-            data[idx + 1] = Math.round(data[idx + 1] * keep);
-            data[idx + 2] = Math.round(data[idx + 2] * keep);
-          }
+                        // Combined: ramp up removal gradually
+                        const removal = edgeFade * vertFade;
+                        const keep = 1.0 - removal;
+
+                        data[idx] = Math.round(data[idx] * keep);
+                        data[idx + 1] = Math.round(data[idx + 1] * keep);
+                        data[idx + 2] = Math.round(data[idx + 2] * keep);
+                    }
+                }
+            }
         }
-      }
-    }
 
-    function downloadSingle(id) {
-      const item = queue.find(q => q.id === id);
-      if (!item || !item.resultData) return;
+        function downloadSingle(id) {
+            const item = queue.find(q => q.id === id);
+            if (!item || !item.resultData) return;
 
-      const filename = `retouched_${item.id}.png`;
+            const filename = `retouched_${item.id}.png`;
 
-      const link = document.createElement('a');
-      link.href = `data:image/png;base64,${item.resultData.data}`;
-      link.download = filename;
-      link.click();
-    }
+            const link = document.createElement('a');
+            link.href = `data:image/png;base64,${item.resultData.data}`;
+            link.download = filename;
+            link.click();
+        }
 
-    function downloadAll() {
-      const doneItems = queue.filter(q => q.status === 'done' && q.resultData);
-      doneItems.forEach(item => downloadSingle(item.id));
-      showToast(`正在下載 ${doneItems.length} 張照片`, 'success');
-    }
+        function downloadAll() {
+            const doneItems = queue.filter(q => q.status === 'done' && q.resultData);
+            doneItems.forEach(item => downloadSingle(item.id));
+            showToast(`正在下載 ${doneItems.length} 張照片`, 'success');
+        }
 
-    function removeItem(id) {
-      queue = queue.filter(q => q.id !== id);
-      renderQueue();
-    }
+        function removeItem(id) {
+            queue = queue.filter(q => q.id !== id);
+            renderQueue();
+        }
 
-    function clearAll() {
-      if (queue.some(q => q.status === 'processing')) {
-        showToast('請等待處理完成後再清除', 'error');
-        return;
-      }
-      queue = [];
-      renderQueue();
-      showToast('已清除全部', 'info');
-    }
+        function clearAll() {
+            if (queue.some(q => q.status === 'processing')) {
+                showToast('請等待處理完成後再清除', 'error');
+                return;
+            }
+            queue = [];
+            renderQueue();
+            showToast('已清除全部', 'info');
+        }
 
-    // ============================================================
-    //  Modal
-    // ============================================================
-    function openModal(src) {
-      event.stopPropagation();
-      const modal = document.getElementById('imageModal');
-      document.getElementById('modalImage').src = src;
-      modal.classList.add('active');
-    }
-    function closeModal() {
-      document.getElementById('imageModal').classList.remove('active');
-    }
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeModal();
-    });
+        // ============================================================
+        //  Modal
+        // ============================================================
+        function openModal(src) {
+            event.stopPropagation();
+            const modal = document.getElementById('imageModal');
+            document.getElementById('modalImage').src = src;
+            modal.classList.add('active');
+        }
+        function closeModal() {
+            document.getElementById('imageModal').classList.remove('active');
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
 
-    // ============================================================
-    //  Toast
-    // ============================================================
-    function showToast(msg, type = 'info') {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      toast.className = `toast ${type}`;
-      toast.textContent = msg;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(40px)';
-        toast.style.transition = '0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
-    }
+        // ============================================================
+        //  Toast
+        // ============================================================
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(40px)';
+                toast.style.transition = '0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
 
-    // Expose functions to global scope for inline onclick handlers (required for type="module")
-    window.processAll = processAll;
-    window.downloadAll = downloadAll;
-    window.downloadSingle = downloadSingle;
-    window.retryOne = retryOne;
-    window.removeItem = removeItem;
-    window.clearAll = clearAll;
-    window.openModal = openModal;
-    window.closeModal = closeModal;
-  </script>
+        // Expose functions to global scope for inline onclick handlers (required for type="module")
+        window.processAll = processAll;
+        window.downloadAll = downloadAll;
+        window.downloadSingle = downloadSingle;
+        window.retryOne = retryOne;
+        window.removeItem = removeItem;
+        window.clearAll = clearAll;
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+    </script>
 </body>
 
 </html>
